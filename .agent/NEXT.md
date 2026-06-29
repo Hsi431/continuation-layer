@@ -2,27 +2,29 @@
 
 ## Next Action
 
-Review Phase 0 findings, run verification, then commit the clean scaffold.
+Commit Phase 1 durable state implementation, then start Phase 2 planning.
 
 ## Target Files
 
-- `FINDINGS.md`
-- `PLAN.md`
+- `bin/continuity.mjs`
+- `src/core/`
+- `tests/`
+- `README.md`
+- `docs/`
 - `.agent/`
 
 ## Constraints
 
-- Do not write runtime code until Phase 1 starts.
-- Keep Codex-specific behavior out of future core modules.
-- Keep cooldown sleeps and restart logic in the supervisor.
-- Do not copy AGPL code or account-rotation designs.
+- Keep Phase 1 scoped to durable state, validation, init/status, and mechanical snapshot.
+- Do not add supervisor, provider adapter runtime, cooldown parser, or hooks yet.
+- Do not overwrite existing `.agent` state in `init`.
 
 ## First Command To Inspect
 
 ```sh
-sed -n '1,260p' FINDINGS.md
+npm test
 ```
 
 ## Stop Condition
 
-Stop before Phase 1 if review finds a factual mismatch between `FINDINGS.md`, `PLAN.md`, and official CLI behavior.
+Stop before Phase 2 if the Phase 1 commit fails or post-commit status is not clean.

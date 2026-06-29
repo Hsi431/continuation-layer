@@ -28,6 +28,8 @@ CLI command
 - Run recovery checks.
 - Manage task completion and archive rules.
 
+Phase 1 implements the first four responsibilities. Recovery check, completion, and archive rules remain later-phase work.
+
 ## Supervisor Responsibilities
 
 - Start provider CLI processes.
@@ -65,4 +67,3 @@ CLI command
 - `git status`
 - `git diff`
 - session chain events
-

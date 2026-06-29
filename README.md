@@ -11,7 +11,7 @@ This project does not bypass provider limits. It waits for legal reset windows, 
 
 ## Current Status
 
-Phase 0 is complete and the project remains scaffold-only. No supervisor, provider adapter, hook, or plugin runtime code has been implemented yet.
+Phase 0 is complete. Phase 1 has started with durable state, schema validation, mechanical snapshots, and the first CLI commands.
 
 ## Intended Shape
 
@@ -33,6 +33,17 @@ Phase 0 confirmed existing tools and official CLI capabilities before implementa
 5. Produced `FINDINGS.md`.
 6. Updated `PLAN.md` where real CLI behavior differed from the initial plan.
 
+## Phase 1 CLI
+
+```sh
+node bin/continuity.mjs init --task-id my-task
+node bin/continuity.mjs status
+node bin/continuity.mjs status --json
+node bin/continuity.mjs snapshot
+```
+
+`init` refuses to overwrite an existing `.agent` state. `snapshot` writes `.agent/AUTO_SNAPSHOT.md`, updates `state.json`, and appends a `checkpoint_written` event.
+
 ## Safety Boundaries
 
 - Do not rotate accounts or bypass provider limits.
@@ -48,8 +59,8 @@ Phase 0 confirmed existing tools and official CLI capabilities before implementa
 docs/                           architecture, safety, and research notes
 plugins/codex-continuity/       future Codex plugin package
 plugins/claude-code-adapter/    future Claude Code adapter docs/skeleton
-src/                            future core, supervisor, provider, CLI code
-tests/                          future unit and integration tests
+src/                            core runtime plus future supervisor/provider/CLI code
+tests/                          unit and integration tests
 FINDINGS.md                     Phase 0 findings
 PLAN.md                         implementation plan
 ```
@@ -57,5 +68,5 @@ PLAN.md                         implementation plan
 ## Next Command
 
 ```sh
-sed -n '1,220p' FINDINGS.md
+npm test
 ```

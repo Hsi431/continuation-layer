@@ -1,16 +1,22 @@
 # Tests
 
-Tests begin in Phase 1.
+Run:
 
-Planned coverage:
+```sh
+npm test
+```
+
+Current Phase 1 coverage:
 
 - state schema validation
-- config loading
-- session event append
-- cooldown pattern detection
-- reset time parsing
-- handoff lookup
-- recovery check
-- snapshot generation
-- provider adapter selection
+- config validation
+- `.agent` initialization
+- existing state non-overwrite behavior
+- incomplete existing state refusal
+- config/state drift refusal for status and snapshot
+- non-git init refusal
+- status loading
+- mechanical snapshot generation
+- session event append during snapshot
 
+Later phases add cooldown parsing, recovery check, and provider adapter selection coverage.

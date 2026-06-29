@@ -1,6 +1,6 @@
 # Source Layout
 
-Runtime code starts after Phase 0 findings are complete.
+Runtime code started in Phase 1 with durable state, validation, snapshot, and CLI support.
 
 Planned modules:
 
@@ -10,4 +10,3 @@ src/providers/   provider adapter interface and implementations
 src/supervisor/  process monitoring and cooldown resume
 src/cli/         human CLI commands
 ```
-

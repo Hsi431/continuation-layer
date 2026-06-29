@@ -58,3 +58,11 @@ The `.agent` directory is durable task memory for the current repository.
 
 - `block_auto_compact` means the continuation layer should route supported pre-compaction events into a handoff and stop/confirmation flow before continuing.
 - `block_auto_compact` must not attempt to bypass provider context management. If compaction still occurs, `PostCompact` records the risk and recovery prefers `.agent` files plus git state.
+
+## Phase 1 Implementation
+
+- `continuity init` writes the default file set and refuses to overwrite existing `.agent/config.json` or `.agent/state.json`.
+- `continuity init` also refuses incomplete existing state when required handoff, next, decisions, snapshot, or session log files are missing.
+- `continuity status` validates config and state before printing status.
+- `continuity status` rejects duplicated config/state fields when `provider`, `overnight_mode`, or `auto_continue_after_handoff` disagree.
+- `continuity snapshot` writes `AUTO_SNAPSHOT.md`, updates `state.updated_at`, sets `state.last_event` to `checkpoint_written`, and appends a session event.
