@@ -18,7 +18,7 @@ None.
 
 ## Status
 
-Phase 3 Codex skill is complete and verified.
+Phase 4 Codex hook runtime is complete, reviewed, and verified. Ready to commit.
 
 ## Goal
 
@@ -26,7 +26,7 @@ Build Continuation Layer v0 for Codex CLI first, with a future Claude Code adapt
 
 ## Current Stage
 
-Phase 3 complete. Codex continuity skill, repo-local skill entry, and plugin skill packaging are implemented, reviewed, verified, and checkpointed. Ready to commit.
+Phase 4 complete. Codex lifecycle hooks, hook state helpers, tests, and docs are implemented. Third Phase 4 review passed, and final verification passed. Ready to commit.
 
 ## What Changed
 
@@ -84,6 +84,28 @@ Phase 3 complete. Codex continuity skill, repo-local skill entry, and plugin ski
 - Updated `.agent/HANDOFF.md` and `.agent/NEXT.md` so the only next action is committing the verified Phase 3 changes.
 - Repeat final review passed with no blocking findings.
 - Repeat final verification passed: `npm test`, `npm run check`, skill validator, plugin validator, and `git diff --check`.
+- Confirmed current git state was clean after `e2c0f48 Implement Codex continuity skill`.
+- Ran Phase 4 baseline verification: `npm test` and `npm run check` passed.
+- Fetched the current Codex manual via the local OpenAI docs helper; hook docs confirmed command handlers, short timeouts, `SessionStart`, `Stop`, `PreCompact`, and `PostCompact`.
+- Added provider-neutral core helpers to build continuity context, record pre-compact context pressure, and record post-compact compaction.
+- Added `compaction_recorded` to durable event validation and docs.
+- Added Codex plugin `hooks/hooks.json` for `SessionStart`, `Stop`, `PreCompact`, and `PostCompact`.
+- Added short Codex hook command script with no long sleeps and no cooldown/API failure handling.
+- Added focused tests for continuity context injection text, pre-compact state transition, post-compact event recording, hook handler config, and non-blocking hook script contract.
+- Updated README and plugin README for Phase 4 hook behavior.
+- First Phase 4 local verification passed: `npm test` and `npm run check`.
+- First Phase 4 review failed on hook config location, plugin-relative command path, JSON stdout contract, and stdin payload parsing.
+- Moved hook config to `plugins/codex-continuity/hooks/hooks.json`.
+- Changed hook commands to use `${PLUGIN_ROOT}`.
+- Made the hook script self-contained inside the plugin package.
+- Changed hook output to JSON `systemMessage` payloads.
+- Restored documented stdin JSON payload parsing with bounded read time and env/argv fallbacks.
+- Added tests for JSON hook output and stop snapshot behavior through the hook entrypoint.
+- Tightened hook CLI error handling so malformed payloads no-op instead of crashing the hook.
+- Second Phase 4 review failed because `SessionStart` used `systemMessage` instead of `hookSpecificOutput.additionalContext`.
+- Fixed `SessionStart` output to inject model-visible continuity context through `hookSpecificOutput.additionalContext`.
+- Third Phase 4 review passed with no blocking findings.
+- Final Phase 4 verification passed: `npm test`, `npm run check`, skill validator, plugin validator, and `git diff --check`.
 
 ## Files Touched
 
@@ -114,6 +136,10 @@ Phase 3 complete. Codex continuity skill, repo-local skill entry, and plugin ski
 - `README.md`
 - `docs/RESEARCH_TARGETS.md`
 - `plugins/codex-continuity/README.md`
+- `plugins/codex-continuity/hooks/hooks.json`
+- `plugins/codex-continuity/hooks/codex-continuity-hook.mjs`
+- `tests/codex-hooks.test.mjs`
+- `docs/STATE_FILES.md`
 - `plugins/claude-code-adapter/README.md`
 - `docs/SAFETY.md`
 - `docs/STATE_FILES.md`
@@ -145,10 +171,14 @@ Phase 3 complete. Codex continuity skill, repo-local skill entry, and plugin ski
 - Runner spawn errors are handled as normal provider failures, not thrown through while leaving state as `running`.
 - Phase 3 uses one real plugin skill as the source of truth; the repo-local `.agents/skills/continuity` entry is a symlink to avoid drift.
 - Phase 3 skill remains instruction-only; hooks are left for Phase 4.
+- Phase 4 hooks use command handlers with explicit short timeouts.
+- Hook runtime reads documented stdin JSON with a short deadline and keeps env/argv fallbacks for manual tests.
+- `PostCompact` records `compaction_recorded`; recovery guidance continues to prefer `.agent` durable state.
+- `SessionStart` injects model-visible continuity context with `hookSpecificOutput.additionalContext`.
 
 ## Current Git State Summary
 
-Git repository on branch `master`. Phase 3 changes are verified, checkpointed, and ready to commit.
+Git repository on branch `master`. Phase 4 hook changes are verified and ready to commit.
 
 ## Tests Run
 
@@ -174,10 +204,19 @@ Git repository on branch `master`. Phase 3 changes are verified, checkpointed, a
 - Repeat final `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
 - Repeat final `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
 - Repeat final `git diff --check`
+- Phase 4 baseline `npm test`
+- Phase 4 baseline `npm run check`
+- Phase 4 first local `npm test`
+- Phase 4 first local `npm run check`
+- Final Phase 4 `npm test`
+- Final Phase 4 `npm run check`
+- Final Phase 4 `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
+- Final Phase 4 `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
+- Final Phase 4 `git diff --check`
 
 ## Test Result
 
-Passed. Scaffold review, docs review, and final review passed after fixes. Final and repeat final tests, checks, skill validation, plugin validation, and whitespace check passed.
+Passed. Third Phase 4 review passed with no blocking findings. Final tests, syntax check, plugin validation, skill validation, and whitespace check passed.
 
 ## Known Risks
 
@@ -188,24 +227,26 @@ Passed. Scaffold review, docs review, and final review passed after fixes. Final
 - Phase 2 has no real long sleep/countdown yet.
 - Session-id extraction is best-effort from provider output.
 - Cooldown text matching is intentionally conservative to avoid classifying context/token/file-size limits as cooldown walls.
+- Hook command cwd/payload details may vary by Codex plugin loading surface; the script supports stdin payload, explicit `--cwd`, `CONTINUITY_REPO`, `INIT_CWD`, `PWD`, and current cwd, and no-ops when `.agent` is missing.
 
 ## Unfinished Work
 
-- Commit Phase 3.
+- Commit Phase 4.
+- Confirm post-commit worktree is clean.
 
 ## Next Exact Steps
 
-1. Commit Phase 3.
+1. Commit Phase 4.
 2. Confirm post-commit worktree is clean.
-3. Start Phase 4 planning only when requested.
+3. Start Phase 5 planning only when requested.
 
 ## Do Not Redo
 
 - Do not repeat Phase 0 research unless official docs or CLI behavior changed.
 - Do not repeat Phase 3 skill work unless official docs or CLI behavior changed.
-- Do not add hooks, context handoff runtime, overnight mode, or Claude Code runtime as part of the Phase 3 commit.
+- Do not add context handoff runtime, overnight mode, or Claude Code runtime as part of Phase 4.
 - Do not place provider-specific logic in core.
 
 ## Last Updated
 
-2026-06-29T13:43:25Z
+2026-06-29T17:42:40Z

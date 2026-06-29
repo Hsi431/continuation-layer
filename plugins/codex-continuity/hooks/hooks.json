@@ -1,0 +1,55 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/hooks/codex-continuity-hook.mjs\" session-start",
+            "timeout": 5,
+            "statusMessage": "Loading continuity context"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/hooks/codex-continuity-hook.mjs\" stop",
+            "timeout": 10,
+            "statusMessage": "Writing continuity snapshot"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/hooks/codex-continuity-hook.mjs\" pre-compact",
+            "timeout": 5,
+            "statusMessage": "Recording continuity handoff point"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/hooks/codex-continuity-hook.mjs\" post-compact",
+            "timeout": 5,
+            "statusMessage": "Recording compaction"
+          }
+        ]
+      }
+    ]
+  }
+}

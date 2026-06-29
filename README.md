@@ -11,7 +11,7 @@ This project does not bypass provider limits. It waits for legal reset windows, 
 
 ## Current Status
 
-Phase 0 through Phase 2 are complete. Phase 3 has the Codex continuity skill and plugin skill packaging implemented and under final verification.
+Phase 0 through Phase 3 are complete. Phase 4 adds Codex lifecycle hooks for continuity context, stop snapshots, and compaction records.
 
 ## Intended Shape
 

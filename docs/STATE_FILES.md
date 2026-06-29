@@ -45,6 +45,7 @@ The `.agent` directory is durable task memory for the current repository.
 - `cooldown_detected`
 - `cooldown_resumed`
 - `context_pressure_detected`
+- `compaction_recorded`
 - `handoff_written`
 - `continuation_requested`
 - `continuation_started`

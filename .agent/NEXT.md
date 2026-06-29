@@ -2,31 +2,34 @@
 
 ## Next Action
 
-Commit Phase 3 Codex skill.
+Commit Phase 4 Codex hooks.
 
 ## Target Files
 
-- `.agent/`
-- `.agents/skills/continuity`
-- `plugins/codex-continuity/`
+- `src/core/agent-state.mjs`
+- `src/core/constants.mjs`
+- `plugins/codex-continuity/hooks/hooks.json`
+- `plugins/codex-continuity/hooks/codex-continuity-hook.mjs`
+- `tests/codex-hooks.test.mjs`
 - `README.md`
+- `plugins/codex-continuity/README.md`
+- `docs/STATE_FILES.md`
 
 ## Constraints
 
-- Commit only the verified Phase 3 skill/package/docs/durable-state changes.
-- Do not start Phase 4 until Phase 3 commit is confirmed and the worktree is clean.
+- Phase 4 only covers Codex hooks.
 - Keep hooks short and do not perform long sleeps.
 - Keep cooldown/API failure handling in the supervisor, not hooks.
-- Do not add hooks, overnight mode, context handoff runtime, or Claude Code runtime to the Phase 3 commit.
-- The current user explicitly requested commit after PASS review and clean tests; do not make any other commits.
+- Do not add overnight mode, context handoff runtime, or Claude Code runtime.
+- Commit only the verified Phase 4 hook changes.
 - Keep provider-specific behavior out of core.
 
 ## First Command To Inspect
 
 ```sh
-git status --short
+git diff --stat
 ```
 
 ## Stop Condition
 
-Stop if final review fails, tests fail, or git status contains unexpected files.
+Stop if git status contains unexpected files.

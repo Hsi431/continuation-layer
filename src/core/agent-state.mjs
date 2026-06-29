@@ -204,6 +204,54 @@ export function writeMechanicalSnapshot({ cwd = process.cwd(), reason = 'manual 
   };
 }
 
+export function buildContinuityContext({ cwd = process.cwd(), source = 'session start' } = {}) {
+  const repoRoot = resolveRepoRoot(cwd);
+  const { state } = loadAgentState(repoRoot);
+  const nextAction = readNextAction(paths(repoRoot).next);
+
+  return [
+    '# Continuity Context',
+    '',
+    `source: ${source}`,
+    `task id: ${state.task_id}`,
+    `provider: ${state.provider}`,
+    `status: ${state.status}`,
+    `mode: ${state.mode}`,
+    `current session: ${state.current_session_id ?? 'none'}`,
+    `parent session: ${state.parent_session_id ?? 'none'}`,
+    `handoff: ${state.current_handoff_path}`,
+    `snapshot: ${state.last_snapshot_path}`,
+    `last event: ${state.last_event}`,
+    `next action: ${nextAction ?? 'none'}`,
+    '',
+    'Read .agent/HANDOFF.md, .agent/NEXT.md, .agent/DECISIONS.md, git status, and git diff before editing.',
+    'Prefer .agent durable state over compacted transcript summaries.',
+  ].join('\n');
+}
+
+export function recordContextPressure({ cwd = process.cwd(), trigger = 'unknown' } = {}) {
+  const repoRoot = resolveRepoRoot(cwd);
+  const timestamp = nowIso();
+  const state = transitionState(repoRoot, {
+    status: 'waiting_for_user',
+    mode: 'context_handoff',
+  }, 'context_pressure_detected', `pre-compact hook: ${trigger}`, timestamp);
+
+  writeSnapshotForState(repoRoot, state, timestamp);
+  return { repoRoot, state };
+}
+
+export function recordCompaction({ cwd = process.cwd(), trigger = 'unknown' } = {}) {
+  const repoRoot = resolveRepoRoot(cwd);
+  const timestamp = nowIso();
+  const state = transitionState(repoRoot, {
+    mode: 'context_handoff',
+  }, 'compaction_recorded', `post-compact hook: ${trigger}; prefer .agent durable state`, timestamp);
+
+  writeSnapshotForState(repoRoot, state, timestamp);
+  return { repoRoot, state };
+}
+
 export function statusAgent({ cwd = process.cwd() } = {}) {
   const repoRoot = resolveRepoRoot(cwd);
   const { config, state } = loadAgentState(repoRoot);

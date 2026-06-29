@@ -8,7 +8,7 @@
     "continuity": "./bin/continuity.mjs"
   },
   "scripts": {
-    "check": "node --check bin/continuity.mjs",
+    "check": "node --check bin/continuity.mjs && node --check plugins/codex-continuity/hooks/codex-continuity-hook.mjs",
     "test": "node --test tests/*.test.mjs"
   },
   "engines": {

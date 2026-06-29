@@ -1,18 +1,26 @@
 # Codex Continuity Plugin
 
-Codex plugin package for the Continuation Layer v0 skill.
+Codex plugin package for the Continuation Layer v0 skill and lifecycle hooks.
 
-Phase 3 adds the instruction-only continuity skill. It teaches Codex to use `.agent` durable state during long tasks, resumes, cooldown recovery, context pressure, handoff, and continuation sessions.
+Phase 3 added the continuity skill. Phase 4 adds short command hooks for session start, stop, and compaction lifecycle events.
 
 Current contents:
 
 ```text
 .codex-plugin/plugin.json
+hooks/codex-continuity-hook.mjs
+hooks/hooks.json
 skills/continuity/SKILL.md
 skills/continuity/agents/openai.yaml
-hooks/
 ```
 
 The repo-local `.agents/skills/continuity` entry points to the packaged skill so local development and plugin packaging use the same instructions.
 
-Hooks remain for Phase 4. Do not add hook runtime or long waits in this phase.
+Hook behavior:
+
+- `SessionStart` prints compact continuity context from `.agent`.
+- `Stop` writes `.agent/AUTO_SNAPSHOT.md`.
+- `PreCompact` records context pressure and points the session toward handoff flow.
+- `PostCompact` records that compaction occurred and that `.agent` durable state should be preferred.
+
+Cooldown and API failure handling remain in the supervisor. Hooks do not perform long sleeps.
