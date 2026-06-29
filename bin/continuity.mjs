@@ -8,6 +8,7 @@ import {
 import { resolveRepoRoot } from '../src/core/git.mjs';
 import { getProviderAdapter } from '../src/providers/adapter.mjs';
 import {
+  continueManagedSession,
   resumeManagedSession,
   startManagedSession,
 } from '../src/supervisor/supervisor.mjs';
@@ -15,7 +16,7 @@ import {
 function parseArgs(argv) {
   const args = [...argv];
   const command = args.shift() ?? 'help';
-  const options = { json: false, dryRun: false, allowEarly: false, promptParts: [] };
+  const options = { json: false, dryRun: false, allowEarly: false, yes: false, promptParts: [] };
 
   while (args.length > 0) {
     const arg = args.shift();
@@ -25,6 +26,8 @@ function parseArgs(argv) {
       options.dryRun = true;
     } else if (arg === '--allow-early') {
       options.allowEarly = true;
+    } else if (arg === '--yes') {
+      options.yes = true;
     } else if (arg === '--task-id') {
       options.taskId = args.shift();
     } else if (arg === '--provider') {
@@ -49,13 +52,15 @@ Commands:
   snapshot             Write .agent/AUTO_SNAPSHOT.md
   start [prompt]       Start provider CLI under supervisor
   resume               Resume a cooling_down task under supervisor
+  continue             Write handoff, then start child continuation after confirmation
 
 Options:
   --task-id <id>       Task id for init
   --provider <name>    Provider for init; default codex
   --json               Machine-readable status output
-  --dry-run            Print provider command without executing start/resume
+  --dry-run            Print provider command without executing start/resume/continue
   --allow-early        Resume before next_resume_at
+  --yes                Confirm child continuation startup
 `);
 }
 
@@ -84,6 +89,10 @@ function printSupervisorResult(result) {
     logPath: result.result?.logPath ?? null,
     nextResumeAt: result.nextResumeAt ?? null,
     waiting: result.waiting ?? false,
+    confirmationRequired: result.confirmationRequired ?? false,
+    continuationStarted: result.continuationStarted ?? false,
+    recoveryOk: result.recovery?.ok ?? null,
+    recoveryFailures: result.recovery?.failures ?? [],
   }, null, 2));
 }
 
@@ -94,6 +103,14 @@ function dryRunCommand(kind, prompt) {
 
   if (kind === 'start') {
     return adapter.startSessionCommand({ repoRoot, prompt, nonInteractive: true });
+  }
+
+  if (kind === 'continue') {
+    return adapter.startContinuationSessionCommand({
+      repoRoot,
+      sessionId: state.current_session_id,
+      prompt: adapter.makeContinuationPrompt({ state }),
+    });
   }
 
   return adapter.resumeSessionCommand({
@@ -154,6 +171,19 @@ async function main() {
     }
 
     printSupervisorResult(await resumeManagedSession({ allowEarly: options.allowEarly }));
+    return;
+  }
+
+  if (command === 'continue') {
+    if (options.dryRun) {
+      printCommandSpec(dryRunCommand('continue', options.prompt));
+      return;
+    }
+
+    printSupervisorResult(await continueManagedSession({
+      confirmed: options.yes,
+      prompt: options.prompt,
+    }));
     return;
   }
 

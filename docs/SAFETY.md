@@ -22,6 +22,8 @@
 - Overnight mode is explicit and visible.
 - Recovery check failure stops automation.
 - `block_auto_compact` means handoff-before-continuation policy, not hard prevention of provider compaction.
+- Default continuation stops for user confirmation before starting a child session.
+- Recovery check failure stops continuation before the provider command is launched.
 
 ## Overnight Mode Guardrails
 
@@ -33,3 +35,9 @@ Automatic continuation is allowed only when:
 - Recovery check passes.
 - Git state has no conflicts.
 - Recorded test state matches the handoff.
+
+## Child Continuation Guardrails
+
+- Write `.agent/HANDOFF.md` before starting child continuation.
+- Read `.agent/HANDOFF.md`, `.agent/NEXT.md`, `.agent/DECISIONS.md`, `git status --short`, and `git diff --no-color` before editing in the child session.
+- Use provider-specific child continuation commands outside core; Codex uses `codex fork`.

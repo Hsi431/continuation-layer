@@ -132,10 +132,11 @@ function writeMechanicalSnapshot(repoRoot, reason) {
 
 function recordContextPressure(repoRoot, trigger) {
   const timestamp = nowIso();
-  const nextState = transitionState(repoRoot, {
+  const pressureState = transitionState(repoRoot, {
     status: 'waiting_for_user',
     mode: 'context_handoff',
   }, 'context_pressure_detected', `pre-compact hook: ${trigger}`, timestamp);
+  const nextState = writeContextHandoffForState(repoRoot, pressureState, `pre-compact hook: ${trigger}`, timestamp);
 
   writeSnapshotForState(repoRoot, nextState, timestamp);
 }
@@ -219,6 +220,30 @@ function readGitSnapshot(repoRoot) {
   };
 }
 
+function writeContextHandoffForState(repoRoot, state, trigger, timestamp) {
+  const git = readGitSnapshot(repoRoot);
+  const nextAction = readNextAction(agentPath(repoRoot, NEXT_FILE));
+  const nextState = {
+    ...state,
+    last_event: 'handoff_written',
+    updated_at: timestamp,
+  };
+
+  saveState(repoRoot, nextState);
+  appendEvent(repoRoot, nextState, 'handoff_written', trigger, timestamp);
+  writeTextFile(agentPath(repoRoot, HANDOFF_FILE), formatContextHandoff({
+    state: nextState,
+    timestamp,
+    trigger,
+    branch: git.branch,
+    gitStatus: git.status,
+    gitDiffStat: git.diffStat,
+    nextAction,
+  }));
+
+  return nextState;
+}
+
 function formatSnapshot({ timestamp, branch, gitStatus, gitDiffStat, state }) {
   return `# Auto Snapshot
 
@@ -233,6 +258,104 @@ session id: ${state.current_session_id ?? 'none'}
 parent session id: ${state.parent_session_id ?? 'none'}
 last event: ${state.last_event}
 error reason if any: ${state.cooldown_reason ?? 'none'}
+`;
+}
+
+function formatContextHandoff({
+  state,
+  timestamp,
+  trigger,
+  branch,
+  gitStatus,
+  gitDiffStat,
+  nextAction,
+}) {
+  return `# Handoff
+
+## Task ID
+
+${state.task_id}
+
+## Provider
+
+${state.provider}
+
+## Current Session
+
+${state.current_session_id ?? 'None.'}
+
+## Parent Session
+
+${state.parent_session_id ?? 'None.'}
+
+## Status
+
+Context handoff written before continuation.
+
+## Goal
+
+Continue the active task from durable \`.agent\` state.
+
+## Current Stage
+
+Context handoff.
+
+## What Changed
+
+- Recorded context pressure trigger: ${trigger}.
+- Wrote durable handoff before starting any child continuation session.
+- Captured current git status and diff stat.
+
+## Files Touched
+
+${formatListFromBlock(gitStatus)}
+
+## Important Decisions
+
+- Durable \`.agent\` state and git state are the source of truth for continuation.
+- Child continuation must run recovery checks before editing.
+
+## Current Git State Summary
+
+branch: ${branch}
+
+git status:
+${indentBlock(gitStatus)}
+
+git diff stat:
+${indentBlock(gitDiffStat)}
+
+## Tests Run
+
+Not run by context handoff writer.
+
+## Test Result
+
+Not run.
+
+## Known Risks
+
+- Generated handoff may need more task-specific detail from the active session.
+
+## Unfinished Work
+
+- ${nextAction ?? 'Read .agent/NEXT.md and continue from the recorded next action.'}
+
+## Next Exact Steps
+
+1. Read \`.agent/HANDOFF.md\`.
+2. Run \`git status --short\`.
+3. Run \`git diff --no-color\`.
+4. Continue from \`.agent/NEXT.md\`.
+
+## Do Not Redo
+
+- Do not redo completed work recorded in durable state.
+- Do not use plain resume when a child continuation thread is required.
+
+## Last Updated
+
+${timestamp}
 `;
 }
 
@@ -311,6 +434,19 @@ function indentBlock(value) {
     .split('\n')
     .map((line) => `  ${line}`)
     .join('\n');
+}
+
+function formatListFromBlock(value) {
+  const lines = String(value)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0 || (lines.length === 1 && lines[0] === '(clean)')) {
+    return '- None.';
+  }
+
+  return lines.map((line) => `- \`${line}\``).join('\n');
 }
 
 function systemMessage(text) {

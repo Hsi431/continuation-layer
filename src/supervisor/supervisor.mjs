@@ -3,10 +3,12 @@ import { join } from 'node:path';
 import {
   loadAgentState,
   transitionState,
+  writeContextHandoff,
   writeSnapshotForState,
 } from '../core/agent-state.mjs';
 import { paths } from '../core/files.mjs';
 import { resolveRepoRoot } from '../core/git.mjs';
+import { runRecoveryCheck } from '../core/recovery.mjs';
 import { getProviderAdapter } from '../providers/adapter.mjs';
 import { runCommand } from './process-runner.mjs';
 
@@ -105,6 +107,97 @@ export async function resumeManagedSession({
     ...handled,
     resumed: true,
     waiting: false,
+  };
+}
+
+export async function continueManagedSession({
+  cwd = process.cwd(),
+  adapter = null,
+  runner = runCommand,
+  now = new Date(),
+  confirmed = false,
+  prompt = '',
+  recoveryCheck = runRecoveryCheck,
+} = {}) {
+  const repoRoot = resolveRepoRoot(cwd);
+  const { config } = loadAgentState(repoRoot);
+  const providerAdapter = adapter ?? getProviderAdapter(config.provider);
+  const handoff = writeContextHandoff({
+    cwd: repoRoot,
+    trigger: 'continuation requested',
+    timestamp: now.toISOString(),
+  });
+
+  if (!confirmed) {
+    return {
+      status: 'waiting_for_user',
+      state: handoff.state,
+      confirmationRequired: true,
+      continuationStarted: false,
+    };
+  }
+
+  const recovery = recoveryCheck({ repoRoot, config, now });
+  if (!recovery.ok) {
+    const reason = `recovery check failed: ${recovery.failures.join('; ')}`;
+    const failedState = transitionState(repoRoot, {
+      status: 'failed',
+      mode: 'context_handoff',
+      cooldown_reason: reason,
+    }, 'continuation_aborted', reason, now.toISOString());
+    writeSnapshotForState(repoRoot, failedState, now.toISOString());
+
+    return {
+      status: 'failed',
+      state: failedState,
+      confirmationRequired: false,
+      continuationStarted: false,
+      recovery,
+    };
+  }
+
+  const { state } = loadAgentState(repoRoot);
+  const parentSessionId = state.current_session_id;
+  const continuationPrompt = [
+    providerAdapter.makeContinuationPrompt({ state }),
+    prompt ? `User continuation prompt: ${prompt}` : null,
+  ].filter(Boolean).join(' ');
+  const commandSpec = providerAdapter.startContinuationSessionCommand({
+    repoRoot,
+    sessionId: parentSessionId,
+    prompt: continuationPrompt,
+  });
+  const continuingState = transitionState(repoRoot, {
+    status: 'continuing',
+    mode: 'context_handoff',
+    parent_session_id: parentSessionId,
+  }, 'continuation_started', 'child continuation session started', now.toISOString());
+
+  const result = await runProviderCommand({
+    runner,
+    commandSpec,
+    logPath: makeLogPath(repoRoot, 'continue', now.toISOString()),
+    repoRoot,
+    state: continuingState,
+    failureReason: 'child continuation failed to start',
+    now,
+  });
+  const handled = await handleProviderResult({
+    repoRoot,
+    config,
+    state: continuingState,
+    adapter: providerAdapter,
+    result,
+    successReason: 'child continuation exited successfully',
+    failureReason: 'child continuation failed',
+    now,
+  });
+
+  return {
+    ...handled,
+    confirmationRequired: false,
+    continuationStarted: true,
+    recovery,
   };
 }
 

@@ -67,3 +67,11 @@ The `.agent` directory is durable task memory for the current repository.
 - `continuity status` validates config and state before printing status.
 - `continuity status` rejects duplicated config/state fields when `provider`, `overnight_mode`, or `auto_continue_after_handoff` disagree.
 - `continuity snapshot` writes `AUTO_SNAPSHOT.md`, updates `state.updated_at`, sets `state.last_event` to `checkpoint_written`, and appends a session event.
+
+## Phase 5 Continuation State
+
+- Context pressure records `context_pressure_detected`, then writes `.agent/HANDOFF.md` and records `handoff_written`.
+- `continuity continue` writes a context handoff and leaves state at `waiting_for_user` unless the user confirms with `--yes`.
+- `continuity continue --yes` runs recovery checks before starting a child session.
+- Failed recovery records `continuation_aborted`, writes a snapshot, and does not start the provider command.
+- Successful Codex child continuation records `continuation_started` and uses provider adapter `startContinuationSessionCommand`, which maps to `codex fork`.

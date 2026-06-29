@@ -9,6 +9,7 @@ import { initAgent } from '../src/core/agent-state.mjs';
 import { codexAdapter } from '../src/providers/codex.mjs';
 import { runCommand } from '../src/supervisor/process-runner.mjs';
 import {
+  continueManagedSession,
   resumeManagedSession,
   startManagedSession,
 } from '../src/supervisor/supervisor.mjs';
@@ -199,4 +200,106 @@ test('resume invokes same-session command after cooldown and clears cooldown sta
   assert.equal(state.next_resume_at, null);
   assert.equal(state.cooldown_reason, null);
   assert.equal(state.last_event, 'cooldown_resumed');
+});
+
+test('continuation writes handoff and waits for confirmation by default', async () => {
+  const repo = makeRepo();
+  let called = false;
+
+  const result = await continueManagedSession({
+    cwd: repo,
+    adapter: codexAdapter,
+    now: new Date('2026-06-29T00:00:00.000Z'),
+    runner: async () => {
+      called = true;
+      return { exitCode: 0, signal: null, stdout: '', stderr: '', logPath: null };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+  const handoff = readFileSync(join(repo, '.agent', 'HANDOFF.md'), 'utf8');
+
+  assert.equal(called, false);
+  assert.equal(result.confirmationRequired, true);
+  assert.equal(result.continuationStarted, false);
+  assert.equal(state.status, 'waiting_for_user');
+  assert.equal(state.mode, 'context_handoff');
+  assert.equal(state.last_event, 'handoff_written');
+  assert.match(handoff, /Context handoff written before continuation/);
+  assert.match(handoff, /git status --short/);
+  assert.match(handoff, /git diff --no-color/);
+});
+
+test('confirmed continuation runs recovery and starts Codex fork child session', async () => {
+  const repo = makeRepo();
+  await startManagedSession({
+    cwd: repo,
+    adapter: codexAdapter,
+    runner: async () => ({
+      exitCode: 0,
+      signal: null,
+      stdout: 'session_id: sess-parent\n',
+      stderr: '',
+      logPath: null,
+    }),
+  });
+
+  let commandSpec = null;
+  const result = await continueManagedSession({
+    cwd: repo,
+    adapter: codexAdapter,
+    confirmed: true,
+    now: new Date('2026-06-29T00:00:00.000Z'),
+    runner: async (spec) => {
+      commandSpec = spec;
+      return {
+        exitCode: 0,
+        signal: null,
+        stdout: 'session_id: sess-child\n',
+        stderr: '',
+        logPath: null,
+      };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.deepEqual(commandSpec.args.slice(0, 4), ['fork', '-C', repo, 'sess-parent']);
+  assert.match(commandSpec.args.at(-1), /Read \.agent\/HANDOFF\.md/);
+  assert.match(commandSpec.args.at(-1), /git status --short/);
+  assert.match(commandSpec.args.at(-1), /git diff --no-color/);
+  assert.equal(result.continuationStarted, true);
+  assert.equal(result.recovery.ok, true);
+  assert.equal(state.current_session_id, 'sess-child');
+  assert.equal(state.parent_session_id, 'sess-parent');
+});
+
+test('recovery check failure aborts continuation before provider command', async () => {
+  const repo = makeRepo();
+  let called = false;
+
+  const result = await continueManagedSession({
+    cwd: repo,
+    adapter: codexAdapter,
+    confirmed: true,
+    now: new Date('2026-06-29T00:00:00.000Z'),
+    recoveryCheck: () => ({
+      ok: false,
+      failures: ['git status failed'],
+      handoff: '',
+      gitStatus: '',
+      gitDiff: '',
+    }),
+    runner: async () => {
+      called = true;
+      return { exitCode: 0, signal: null, stdout: '', stderr: '', logPath: null };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.equal(called, false);
+  assert.equal(result.status, 'failed');
+  assert.equal(result.continuationStarted, false);
+  assert.deepEqual(result.recovery.failures, ['git status failed']);
+  assert.equal(state.status, 'failed');
+  assert.equal(state.last_event, 'continuation_aborted');
+  assert.match(state.cooldown_reason, /recovery check failed/);
 });

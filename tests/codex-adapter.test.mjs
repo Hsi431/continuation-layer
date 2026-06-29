@@ -24,6 +24,20 @@ test('codex adapter builds start, resume, and fork commands', () => {
   );
 });
 
+test('codex continuation prompt requires handoff and git recovery reads', () => {
+  const prompt = codexAdapter.makeContinuationPrompt({
+    state: {
+      task_id: 'task-codex',
+      current_session_id: 'parent-session',
+      current_handoff_path: '.agent/HANDOFF.md',
+    },
+  });
+
+  assert.match(prompt, /Read \.agent\/HANDOFF\.md/);
+  assert.match(prompt, /git status --short/);
+  assert.match(prompt, /git diff --no-color/);
+});
+
 test('codex adapter detects cooldown text and extracts session ids', () => {
   const text = 'session_id: sess-123\n429 rate limit reached; try again in 1 hour';
   const cooldown = codexAdapter.detectCooldownError(text);

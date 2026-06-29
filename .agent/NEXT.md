@@ -2,26 +2,34 @@
 
 ## Next Action
 
-Commit Phase 4 Codex hooks.
+Commit Phase 5.
 
 ## Target Files
 
+- `bin/continuity.mjs`
 - `src/core/agent-state.mjs`
-- `src/core/constants.mjs`
-- `plugins/codex-continuity/hooks/hooks.json`
-- `plugins/codex-continuity/hooks/codex-continuity-hook.mjs`
+- `src/core/recovery.mjs`
+- `src/core/templates.mjs`
+- `src/providers/codex.mjs`
+- `src/supervisor/supervisor.mjs`
+- `tests/codex-adapter.test.mjs`
 - `tests/codex-hooks.test.mjs`
+- `tests/recovery.test.mjs`
+- `tests/supervisor.test.mjs`
 - `README.md`
-- `plugins/codex-continuity/README.md`
+- `src/README.md`
+- `docs/SAFETY.md`
 - `docs/STATE_FILES.md`
+- `plugins/codex-continuity/README.md`
+- `plugins/codex-continuity/skills/continuity/SKILL.md`
 
 ## Constraints
 
-- Phase 4 only covers Codex hooks.
-- Keep hooks short and do not perform long sleeps.
-- Keep cooldown/API failure handling in the supervisor, not hooks.
-- Do not add overnight mode, context handoff runtime, or Claude Code runtime.
-- Commit only the verified Phase 4 hook changes.
+- Phase 5 only covers context handoff and continuation.
+- Keep cooldown/API failure handling in the supervisor.
+- Use Codex `fork` for child continuation.
+- Default mode must require user confirmation before child startup.
+- Do not add overnight mode or Claude Code runtime.
 - Keep provider-specific behavior out of core.
 
 ## First Command To Inspect

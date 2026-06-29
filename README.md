@@ -5,13 +5,13 @@ Continuation Layer is a task continuity guard for CLI coding agents.
 The v0 target is Codex CLI first, with a Claude Code adapter skeleton kept separate. The project handles two interruption classes:
 
 - Cooldown walls: rate limits, usage limits, 429s, and reset windows.
-- Context pressure: handoff before compaction; continuation runtime and overnight mode are planned later phases.
+- Context pressure: handoff before compaction, recovery check, and user-confirmed child continuation.
 
 This project does not bypass provider limits. It waits for legal reset windows, records durable state, and reduces the risk of resuming the wrong task.
 
 ## Current Status
 
-Phase 0 through Phase 3 are complete. Phase 4 adds Codex lifecycle hooks for continuity context, stop snapshots, and compaction records.
+Phase 0 through Phase 4 are complete. Phase 5 adds context handoff and user-confirmed Codex child continuation.
 
 ## Intended Shape
 
@@ -42,11 +42,13 @@ node bin/continuity.mjs status --json
 node bin/continuity.mjs snapshot
 node bin/continuity.mjs start --dry-run "task prompt"
 node bin/continuity.mjs resume --dry-run
+node bin/continuity.mjs continue
+node bin/continuity.mjs continue --yes
 ```
 
 `init` refuses to overwrite an existing `.agent` state. `snapshot` writes `.agent/AUTO_SNAPSHOT.md`, updates `state.json`, and appends a `checkpoint_written` event.
 
-`start` and `resume` run provider CLI commands through the supervisor. Use `--dry-run` to inspect the Codex command without launching Codex.
+`start` and `resume` run provider CLI commands through the supervisor. `continue` writes a handoff and stops for confirmation by default; `continue --yes` runs recovery checks and starts a Codex child session with `codex fork`. Use `--dry-run` to inspect the Codex command without launching Codex.
 
 ## Safety Boundaries
 

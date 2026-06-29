@@ -9,7 +9,6 @@ import {
   buildContinuityContext,
   initAgent,
   recordCompaction,
-  recordContextPressure,
 } from '../src/core/agent-state.mjs';
 import { runHookCli } from '../plugins/codex-continuity/hooks/codex-continuity-hook.mjs';
 
@@ -39,15 +38,21 @@ test('session start context points Codex at durable state', () => {
 test('context pressure records handoff mode without provider cooldown logic', () => {
   const repo = makeRepo();
 
-  recordContextPressure({ cwd: repo, trigger: 'auto' });
+  const stdout = runHookCli(['pre-compact', '--cwd', repo, '--trigger', 'auto'], {
+    PLUGIN_ROOT: join(process.cwd(), 'plugins', 'codex-continuity'),
+  });
+  const output = JSON.parse(stdout);
 
   const state = readJson(join(repo, '.agent', 'state.json'));
   const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8').trim().split('\n');
+  assert.match(output.systemMessage, /continuity handoff requested/);
   assert.equal(state.status, 'waiting_for_user');
   assert.equal(state.mode, 'context_handoff');
-  assert.equal(state.last_event, 'context_pressure_detected');
-  assert.equal(JSON.parse(sessions.at(-1)).event, 'context_pressure_detected');
-  assert.match(readFileSync(join(repo, '.agent', 'AUTO_SNAPSHOT.md'), 'utf8'), /context_pressure_detected/);
+  assert.equal(state.last_event, 'handoff_written');
+  assert.equal(JSON.parse(sessions.at(-2)).event, 'context_pressure_detected');
+  assert.equal(JSON.parse(sessions.at(-1)).event, 'handoff_written');
+  assert.match(readFileSync(join(repo, '.agent', 'HANDOFF.md'), 'utf8'), /Context handoff written before continuation/);
+  assert.match(readFileSync(join(repo, '.agent', 'AUTO_SNAPSHOT.md'), 'utf8'), /handoff_written/);
 });
 
 test('post compact records compaction and keeps durable state preferred', () => {

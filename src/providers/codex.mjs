@@ -69,7 +69,8 @@ export const codexAdapter = Object.freeze({
     return [
       `Start a continuation session for task ${state.task_id}.`,
       `Parent session: ${state.current_session_id ?? 'unknown'}.`,
-      `Read ${state.current_handoff_path}, .agent/NEXT.md, .agent/DECISIONS.md, git status, and git diff before editing.`,
+      `Read ${state.current_handoff_path}, .agent/NEXT.md, and .agent/DECISIONS.md before editing.`,
+      'Run git status --short and git diff --no-color before editing.',
       'Run recovery check before continuing.',
     ].join(' ');
   },

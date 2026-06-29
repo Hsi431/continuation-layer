@@ -18,7 +18,7 @@ None.
 
 ## Status
 
-Phase 4 Codex hook runtime is complete, reviewed, and verified. Ready to commit.
+Phase 5 implementation is complete locally. Repeat subagent review passed, and final verification passed. Ready to commit Phase 5.
 
 ## Goal
 
@@ -26,7 +26,7 @@ Build Continuation Layer v0 for Codex CLI first, with a future Claude Code adapt
 
 ## Current Stage
 
-Phase 4 complete. Codex lifecycle hooks, hook state helpers, tests, and docs are implemented. Third Phase 4 review passed, and final verification passed. Ready to commit.
+Phase 5 complete locally. Context handoff and continuation runtime are implemented, reviewed, and verified.
 
 ## What Changed
 
@@ -106,6 +106,22 @@ Phase 4 complete. Codex lifecycle hooks, hook state helpers, tests, and docs are
 - Fixed `SessionStart` output to inject model-visible continuity context through `hookSpecificOutput.additionalContext`.
 - Third Phase 4 review passed with no blocking findings.
 - Final Phase 4 verification passed: `npm test`, `npm run check`, skill validator, plugin validator, and `git diff --check`.
+- Confirmed clean post-Phase 4 baseline after commit `528b972 Implement Codex hooks`.
+- Ran Phase 5 baseline: `git status --short` clean, `npm test` passed, and `npm run check` passed.
+- Added context handoff generation before continuation.
+- Added provider-neutral recovery check reading `.agent/HANDOFF.md`, `.agent/NEXT.md`, `git status --short`, and `git diff --no-color`.
+- Added `continueManagedSession` supervisor flow: default mode writes handoff and waits for user confirmation; confirmed mode runs recovery before launching a child session.
+- Wired CLI `continuity continue` and `continuity continue --yes`.
+- Kept Codex child continuation on provider adapter `startContinuationSessionCommand`, which maps to `codex fork`.
+- Updated Codex continuation prompt so child sessions read handoff, next, decisions, git status, and git diff before editing.
+- Added tests for default confirmation, Codex fork child continuation, recovery abort, recovery check reads, and context pressure handoff.
+- Updated README, source layout docs, state docs, safety docs, plugin README, and continuity skill for Phase 5 behavior.
+- First Phase 5 segment 1 review failed because the packaged Codex PreCompact hook had a local `recordContextPressure` implementation that did not write `.agent/HANDOFF.md` or append `handoff_written`.
+- Fixed packaged hook runtime so PreCompact writes context handoff, appends `handoff_written`, and snapshots the handoff state.
+- Updated hook test to exercise `runHookCli(['pre-compact'])` instead of only the core helper.
+- Reran `npm test`, `npm run check`, and `git diff --check`; all passed after the fix.
+- Repeat Phase 5 review passed with no blocking findings.
+- Final verification passed: `npm test`, `npm run check`, skill validator, plugin validator, and `git diff --check`.
 
 ## Files Touched
 
@@ -139,6 +155,8 @@ Phase 4 complete. Codex lifecycle hooks, hook state helpers, tests, and docs are
 - `plugins/codex-continuity/hooks/hooks.json`
 - `plugins/codex-continuity/hooks/codex-continuity-hook.mjs`
 - `tests/codex-hooks.test.mjs`
+- `src/core/recovery.mjs`
+- `tests/recovery.test.mjs`
 - `docs/STATE_FILES.md`
 - `plugins/claude-code-adapter/README.md`
 - `docs/SAFETY.md`
@@ -178,7 +196,7 @@ Phase 4 complete. Codex lifecycle hooks, hook state helpers, tests, and docs are
 
 ## Current Git State Summary
 
-Git repository on branch `master`. Phase 4 hook changes are verified and ready to commit.
+Git repository on branch `master`. Phase 5 changes are verified and ready to commit.
 
 ## Tests Run
 
@@ -213,10 +231,22 @@ Git repository on branch `master`. Phase 4 hook changes are verified and ready t
 - Final Phase 4 `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
 - Final Phase 4 `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
 - Final Phase 4 `git diff --check`
+- Phase 5 baseline `npm test`
+- Phase 5 baseline `npm run check`
+- Phase 5 segment 1 `npm test`
+- Phase 5 segment 1 `npm run check`
+- Phase 5 segment 1 post-review-fix `npm test`
+- Phase 5 segment 1 post-review-fix `npm run check`
+- Phase 5 segment 1 post-review-fix `git diff --check`
+- Final Phase 5 `npm test`
+- Final Phase 5 `npm run check`
+- Final Phase 5 `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
+- Final Phase 5 `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
+- Final Phase 5 `git diff --check`
 
 ## Test Result
 
-Passed. Third Phase 4 review passed with no blocking findings. Final tests, syntax check, plugin validation, skill validation, and whitespace check passed.
+Passed. First review failed, fix was applied, repeat review passed, and final verification passed.
 
 ## Known Risks
 
@@ -228,25 +258,26 @@ Passed. Third Phase 4 review passed with no blocking findings. Final tests, synt
 - Session-id extraction is best-effort from provider output.
 - Cooldown text matching is intentionally conservative to avoid classifying context/token/file-size limits as cooldown walls.
 - Hook command cwd/payload details may vary by Codex plugin loading surface; the script supports stdin payload, explicit `--cwd`, `CONTINUITY_REPO`, `INIT_CWD`, `PWD`, and current cwd, and no-ops when `.agent` is missing.
+- Phase 5 default confirmation is represented by CLI `--yes`; interactive prompting is still a CLI/user workflow, not an in-process prompt.
 
 ## Unfinished Work
 
-- Commit Phase 4.
+- Commit Phase 5.
 - Confirm post-commit worktree is clean.
 
 ## Next Exact Steps
 
-1. Commit Phase 4.
+1. Commit Phase 5.
 2. Confirm post-commit worktree is clean.
-3. Start Phase 5 planning only when requested.
+3. Start Phase 6 only when requested.
 
 ## Do Not Redo
 
 - Do not repeat Phase 0 research unless official docs or CLI behavior changed.
 - Do not repeat Phase 3 skill work unless official docs or CLI behavior changed.
-- Do not add context handoff runtime, overnight mode, or Claude Code runtime as part of Phase 4.
+- Do not add overnight mode or Claude Code runtime as part of Phase 5.
 - Do not place provider-specific logic in core.
 
 ## Last Updated
 
-2026-06-29T17:42:40Z
+2026-06-29T18:10:37Z

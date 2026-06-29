@@ -75,6 +75,104 @@ ${timestamp}
 `;
 }
 
+export function formatContextHandoff({
+  state,
+  timestamp,
+  trigger,
+  branch,
+  gitStatus,
+  gitDiffStat,
+  nextAction,
+}) {
+  return `# Handoff
+
+## Task ID
+
+${state.task_id}
+
+## Provider
+
+${state.provider}
+
+## Current Session
+
+${state.current_session_id ?? 'None.'}
+
+## Parent Session
+
+${state.parent_session_id ?? 'None.'}
+
+## Status
+
+Context handoff written before continuation.
+
+## Goal
+
+Continue the active task from durable \`.agent\` state.
+
+## Current Stage
+
+Context handoff.
+
+## What Changed
+
+- Recorded context pressure trigger: ${trigger}.
+- Wrote durable handoff before starting any child continuation session.
+- Captured current git status and diff stat.
+
+## Files Touched
+
+${formatListFromBlock(gitStatus)}
+
+## Important Decisions
+
+- Durable \`.agent\` state and git state are the source of truth for continuation.
+- Child continuation must run recovery checks before editing.
+
+## Current Git State Summary
+
+branch: ${branch}
+
+git status:
+${indentBlock(gitStatus)}
+
+git diff stat:
+${indentBlock(gitDiffStat)}
+
+## Tests Run
+
+Not run by context handoff writer.
+
+## Test Result
+
+Not run.
+
+## Known Risks
+
+- Generated handoff may need more task-specific detail from the active session.
+
+## Unfinished Work
+
+- ${nextAction ?? 'Read .agent/NEXT.md and continue from the recorded next action.'}
+
+## Next Exact Steps
+
+1. Read \`.agent/HANDOFF.md\`.
+2. Run \`git status --short\`.
+3. Run \`git diff --no-color\`.
+4. Continue from \`.agent/NEXT.md\`.
+
+## Do Not Redo
+
+- Do not redo completed work recorded in durable state.
+- Do not use plain resume when a child continuation thread is required.
+
+## Last Updated
+
+${timestamp}
+`;
+}
+
 export function formatNext() {
   return `# Next
 
@@ -143,4 +241,17 @@ function indentBlock(value) {
     .split('\n')
     .map((line) => `  ${line}`)
     .join('\n');
+}
+
+function formatListFromBlock(value) {
+  const lines = String(value)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0 || (lines.length === 1 && lines[0] === 'clean')) {
+    return '- None.';
+  }
+
+  return lines.map((line) => `- \`${line}\``).join('\n');
 }

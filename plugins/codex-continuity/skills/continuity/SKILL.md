@@ -50,6 +50,7 @@ When context pressure, compaction, or handoff is likely:
 3. Update `.agent/HANDOFF.md`, `.agent/NEXT.md`, and `.agent/DECISIONS.md` as needed.
 4. Record tests/checks already run and tests/checks still needed.
 5. Ask for confirmation before starting a continuation session unless explicit overnight or auto-continuation policy is enabled and recovery checks pass.
+6. For a new Codex child thread, use `codex fork`, not plain `codex resume`.
 
 Do not try to bypass provider compaction. Prefer durable handoff files before and after compaction.
 

@@ -17,6 +17,7 @@ import {
 import { readGitSnapshot, resolveRepoRoot } from './git.mjs';
 import {
   formatDecisions,
+  formatContextHandoff,
   formatHandoff,
   formatNext,
   formatSnapshot,
@@ -232,13 +233,45 @@ export function buildContinuityContext({ cwd = process.cwd(), source = 'session 
 export function recordContextPressure({ cwd = process.cwd(), trigger = 'unknown' } = {}) {
   const repoRoot = resolveRepoRoot(cwd);
   const timestamp = nowIso();
-  const state = transitionState(repoRoot, {
+  const pressureState = transitionState(repoRoot, {
     status: 'waiting_for_user',
     mode: 'context_handoff',
   }, 'context_pressure_detected', `pre-compact hook: ${trigger}`, timestamp);
+  const state = writeContextHandoffForState({
+    repoRoot,
+    state: pressureState,
+    trigger: `pre-compact hook: ${trigger}`,
+    timestamp,
+  });
 
   writeSnapshotForState(repoRoot, state, timestamp);
   return { repoRoot, state };
+}
+
+export function writeContextHandoff({
+  cwd = process.cwd(),
+  trigger = 'manual continuation',
+  timestamp = nowIso(),
+} = {}) {
+  const repoRoot = resolveRepoRoot(cwd);
+  const { state } = loadAgentState(repoRoot);
+  const handoffState = {
+    ...state,
+    status: 'waiting_for_user',
+    mode: 'context_handoff',
+    last_event: 'handoff_written',
+    updated_at: timestamp,
+  };
+
+  const nextState = writeContextHandoffForState({
+    repoRoot,
+    state: handoffState,
+    trigger,
+    timestamp,
+  });
+
+  writeSnapshotForState(repoRoot, nextState, timestamp);
+  return { repoRoot, state: nextState, handoffPath: paths(repoRoot).handoff };
 }
 
 export function recordCompaction({ cwd = process.cwd(), trigger = 'unknown' } = {}) {
@@ -283,6 +316,30 @@ function buildSnapshotText(repoRoot, state, timestamp) {
     gitDiffStat: git.diffStat,
     state,
   });
+}
+
+function writeContextHandoffForState({ repoRoot, state, trigger, timestamp }) {
+  const git = readGitSnapshot(repoRoot);
+  const nextAction = readNextAction(paths(repoRoot).next);
+  const nextState = {
+    ...state,
+    last_event: 'handoff_written',
+    updated_at: timestamp,
+  };
+
+  saveState(repoRoot, nextState);
+  appendEvent(repoRoot, nextState, 'handoff_written', trigger, timestamp);
+  writeTextFile(paths(repoRoot).handoff, formatContextHandoff({
+    state: nextState,
+    timestamp,
+    trigger,
+    branch: git.branch,
+    gitStatus: git.status,
+    gitDiffStat: git.diffStat,
+    nextAction,
+  }));
+
+  return nextState;
 }
 
 function readNextAction(path) {
