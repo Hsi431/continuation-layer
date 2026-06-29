@@ -1,0 +1,14 @@
+{
+  "provider": "codex",
+  "overnight_mode": false,
+  "auto_continue_after_handoff": false,
+  "cooldown_default_seconds": 18000,
+  "cooldown_buffer_seconds": 300,
+  "block_auto_compact": true,
+  "handoff_required_before_continuation": true,
+  "require_clean_recovery_check": true,
+  "checkpoint_policy": "stage_boundary",
+  "max_handoff_age_minutes": 120,
+  "log_retention_days": 14
+}
+

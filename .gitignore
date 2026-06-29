@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+.env
+.DS_Store
+.agent/logs/*
+.agent/snapshots/*
+!.agent/logs/.gitkeep
+!.agent/snapshots/.gitkeep
+
