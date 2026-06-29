@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { initAgent } from '../src/core/agent-state.mjs';
+import { initAgent, setOvernightMode } from '../src/core/agent-state.mjs';
 import { codexAdapter } from '../src/providers/codex.mjs';
 import { runCommand } from '../src/supervisor/process-runner.mjs';
 import {
@@ -272,6 +272,112 @@ test('confirmed continuation runs recovery and starts Codex fork child session',
   assert.equal(state.parent_session_id, 'sess-parent');
 });
 
+test('overnight mode auto-starts continuation after handoff and traces session chain', async () => {
+  const repo = makeRepo();
+  await startManagedSession({
+    cwd: repo,
+    adapter: codexAdapter,
+    runner: async () => ({
+      exitCode: 0,
+      signal: null,
+      stdout: 'session_id: sess-parent\n',
+      stderr: '',
+      logPath: null,
+    }),
+  });
+  setOvernightMode({
+    cwd: repo,
+    enabled: true,
+    timestamp: '2026-06-29T00:00:00.000Z',
+  });
+
+  let commandSpec = null;
+  const result = await continueManagedSession({
+    cwd: repo,
+    adapter: codexAdapter,
+    now: new Date('2026-06-29T00:01:00.000Z'),
+    runner: async (spec) => {
+      commandSpec = spec;
+      return {
+        exitCode: 0,
+        signal: null,
+        stdout: 'session_id: sess-child\n',
+        stderr: '',
+        logPath: null,
+      };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+
+  assert.deepEqual(commandSpec.args.slice(0, 4), ['fork', '-C', repo, 'sess-parent']);
+  assert.equal(result.confirmationRequired, false);
+  assert.equal(result.continuationStarted, true);
+  assert.equal(result.autoContinued, true);
+  assert.equal(state.current_session_id, 'sess-child');
+  assert.equal(state.parent_session_id, 'sess-parent');
+  assert.equal(sessions.at(-2).event, 'continuation_started');
+  assert.equal(sessions.at(-2).session_id, 'sess-parent');
+  assert.equal(sessions.at(-1).event, 'checkpoint_written');
+  assert.equal(sessions.at(-1).session_id, 'sess-child');
+  assert.equal(sessions.at(-1).parent_session_id, 'sess-parent');
+});
+
+test('overnight mode without auto-continue still waits for confirmation', async () => {
+  const repo = makeRepo();
+  setOvernightMode({
+    cwd: repo,
+    enabled: true,
+    autoContinueAfterHandoff: false,
+    timestamp: '2026-06-29T00:00:00.000Z',
+  });
+  let called = false;
+
+  const result = await continueManagedSession({
+    cwd: repo,
+    adapter: codexAdapter,
+    runner: async () => {
+      called = true;
+      return { exitCode: 0, signal: null, stdout: '', stderr: '', logPath: null };
+    },
+  });
+
+  assert.equal(called, false);
+  assert.equal(result.confirmationRequired, true);
+  assert.equal(result.continuationStarted, false);
+  assert.equal(result.autoContinued, false);
+});
+
+test('overnight auto-continuation aborts when parent session is unknown', async () => {
+  const repo = makeRepo();
+  setOvernightMode({
+    cwd: repo,
+    enabled: true,
+    timestamp: '2026-06-29T00:00:00.000Z',
+  });
+  let called = false;
+
+  const result = await continueManagedSession({
+    cwd: repo,
+    adapter: codexAdapter,
+    now: new Date('2026-06-29T00:01:00.000Z'),
+    runner: async () => {
+      called = true;
+      return { exitCode: 0, signal: null, stdout: '', stderr: '', logPath: null };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.equal(called, false);
+  assert.equal(result.status, 'failed');
+  assert.equal(result.autoContinued, true);
+  assert.equal(result.continuationStarted, false);
+  assert.match(result.recovery.failures.join('\n'), /missing parent session id/);
+  assert.equal(state.last_event, 'continuation_aborted');
+  assert.equal(state.parent_session_id, null);
+  assert.match(state.cooldown_reason, /missing parent session id/);
+});
+
 test('recovery check failure aborts continuation before provider command', async () => {
   const repo = makeRepo();
   let called = false;
@@ -302,4 +408,39 @@ test('recovery check failure aborts continuation before provider command', async
   assert.equal(state.status, 'failed');
   assert.equal(state.last_event, 'continuation_aborted');
   assert.match(state.cooldown_reason, /recovery check failed/);
+});
+
+test('overnight recovery failure aborts automation before provider command', async () => {
+  const repo = makeRepo();
+  setOvernightMode({
+    cwd: repo,
+    enabled: true,
+    timestamp: '2026-06-29T00:00:00.000Z',
+  });
+  let called = false;
+
+  const result = await continueManagedSession({
+    cwd: repo,
+    adapter: codexAdapter,
+    now: new Date('2026-06-29T00:01:00.000Z'),
+    recoveryCheck: () => ({
+      ok: false,
+      failures: ['.agent/HANDOFF.md is incomplete'],
+      handoff: '# Handoff\n',
+      gitStatus: '',
+      gitDiff: '',
+    }),
+    runner: async () => {
+      called = true;
+      return { exitCode: 0, signal: null, stdout: '', stderr: '', logPath: null };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.equal(called, false);
+  assert.equal(result.autoContinued, true);
+  assert.equal(result.continuationStarted, false);
+  assert.equal(result.status, 'failed');
+  assert.equal(state.last_event, 'continuation_aborted');
+  assert.match(state.cooldown_reason, /HANDOFF\.md is incomplete/);
 });

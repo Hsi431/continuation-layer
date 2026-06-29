@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 
 import {
   initAgent,
+  setOvernightMode,
   statusAgent,
   writeMechanicalSnapshot,
 } from '../src/core/agent-state.mjs';
@@ -128,6 +129,44 @@ test('status reads next action and core state', () => {
   assert.equal(status.currentHandoff, '.agent/HANDOFF.md');
   assert.equal(status.overnightMode, false);
   assert.equal(status.nextAction, 'Define the next action for this task.');
+});
+
+test('overnight mode is off by default and can be toggled with config/state sync', () => {
+  const repo = makeRepo();
+  initAgent({ cwd: repo, taskId: 'task-overnight' });
+
+  assert.equal(statusAgent({ cwd: repo }).overnightMode, false);
+  assert.equal(statusAgent({ cwd: repo }).autoContinueAfterHandoff, false);
+
+  const enabled = setOvernightMode({
+    cwd: repo,
+    enabled: true,
+    timestamp: '2026-06-29T00:00:00.000Z',
+  });
+  const enabledState = readJson(join(repo, '.agent', 'state.json'));
+  const enabledConfig = readJson(join(repo, '.agent', 'config.json'));
+  assert.equal(enabled.config.overnight_mode, true);
+  assert.equal(enabledConfig.overnight_mode, true);
+  assert.equal(enabledState.overnight_mode, true);
+  assert.equal(enabledState.auto_continue_after_handoff, true);
+  assert.equal(enabledState.last_event, 'overnight_enabled');
+
+  setOvernightMode({
+    cwd: repo,
+    enabled: false,
+    timestamp: '2026-06-29T00:01:00.000Z',
+  });
+  const disabledState = readJson(join(repo, '.agent', 'state.json'));
+  const disabledConfig = readJson(join(repo, '.agent', 'config.json'));
+  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8').trim().split('\n');
+
+  assert.equal(disabledConfig.overnight_mode, false);
+  assert.equal(disabledConfig.auto_continue_after_handoff, false);
+  assert.equal(disabledState.overnight_mode, false);
+  assert.equal(disabledState.auto_continue_after_handoff, false);
+  assert.equal(disabledState.last_event, 'overnight_disabled');
+  assert.equal(JSON.parse(sessions.at(-2)).event, 'overnight_enabled');
+  assert.equal(JSON.parse(sessions.at(-1)).event, 'overnight_disabled');
 });
 
 test('mechanical snapshot records git state and updates checkpoint event', () => {

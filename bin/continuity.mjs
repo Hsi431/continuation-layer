@@ -2,6 +2,7 @@
 import {
   initAgent,
   loadAgentState,
+  setOvernightMode,
   statusAgent,
   writeMechanicalSnapshot,
 } from '../src/core/agent-state.mjs';
@@ -53,6 +54,8 @@ Commands:
   start [prompt]       Start provider CLI under supervisor
   resume               Resume a cooling_down task under supervisor
   continue             Write handoff, then start child continuation after confirmation
+  overnight enable     Enable overnight auto-continuation
+  overnight disable    Disable overnight auto-continuation
 
 Options:
   --task-id <id>       Task id for init
@@ -91,9 +94,15 @@ function printSupervisorResult(result) {
     waiting: result.waiting ?? false,
     confirmationRequired: result.confirmationRequired ?? false,
     continuationStarted: result.continuationStarted ?? false,
+    autoContinued: result.autoContinued ?? false,
     recoveryOk: result.recovery?.ok ?? null,
     recoveryFailures: result.recovery?.failures ?? [],
   }, null, 2));
+}
+
+function printOvernightResult(result) {
+  console.log(`overnight mode: ${result.config.overnight_mode}`);
+  console.log(`auto continue after handoff: ${result.config.auto_continue_after_handoff}`);
 }
 
 function dryRunCommand(kind, prompt) {
@@ -152,6 +161,21 @@ async function main() {
     const result = writeMechanicalSnapshot();
     console.log(`snapshot written: ${result.snapshotPath}`);
     return;
+  }
+
+  if (command === 'overnight') {
+    const action = options.promptParts[0] ?? 'status';
+    if (action === 'enable' || action === 'on') {
+      printOvernightResult(setOvernightMode({ enabled: true }));
+      return;
+    }
+
+    if (action === 'disable' || action === 'off') {
+      printOvernightResult(setOvernightMode({ enabled: false }));
+      return;
+    }
+
+    throw new Error(`Unknown overnight action: ${action}`);
   }
 
   if (command === 'start') {

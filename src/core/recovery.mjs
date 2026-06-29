@@ -23,6 +23,10 @@ export function runRecoveryCheck({ repoRoot, config, now = new Date() }) {
     failures.push('git diff failed');
   }
 
+  if (handoff && !isCompleteHandoff(handoff)) {
+    failures.push('.agent/HANDOFF.md is incomplete');
+  }
+
   if (!extractNextAction(next)) {
     failures.push('.agent/NEXT.md has no next action');
   }
@@ -60,6 +64,14 @@ function readRequiredText(path, label, failures) {
 function extractNextAction(text) {
   const match = String(text).match(/## Next Action\s+([\s\S]*?)(?:\n## |\s*$)/);
   return match?.[1]?.trim() ?? '';
+}
+
+function isCompleteHandoff(text) {
+  return [
+    '## Task ID',
+    '## Status',
+    '## Next Exact Steps',
+  ].every((section) => String(text).includes(section));
 }
 
 function hasUnmergedStatus(status) {

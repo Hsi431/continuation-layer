@@ -127,13 +127,16 @@ export async function continueManagedSession({
     trigger: 'continuation requested',
     timestamp: now.toISOString(),
   });
+  const autoContinue = config.overnight_mode && config.auto_continue_after_handoff;
+  const autoContinued = !confirmed && autoContinue;
 
-  if (!confirmed) {
+  if (!confirmed && !autoContinue) {
     return {
       status: 'waiting_for_user',
       state: handoff.state,
       confirmationRequired: true,
       continuationStarted: false,
+      autoContinued: false,
     };
   }
 
@@ -152,12 +155,36 @@ export async function continueManagedSession({
       state: failedState,
       confirmationRequired: false,
       continuationStarted: false,
+      autoContinued,
       recovery,
     };
   }
 
   const { state } = loadAgentState(repoRoot);
   const parentSessionId = state.current_session_id;
+  if (autoContinued && !parentSessionId) {
+    const reason = 'recovery check failed: missing parent session id for overnight continuation';
+    const failedState = transitionState(repoRoot, {
+      status: 'failed',
+      mode: 'overnight',
+      cooldown_reason: reason,
+    }, 'continuation_aborted', reason, now.toISOString());
+    writeSnapshotForState(repoRoot, failedState, now.toISOString());
+
+    return {
+      status: 'failed',
+      state: failedState,
+      confirmationRequired: false,
+      continuationStarted: false,
+      autoContinued,
+      recovery: {
+        ...recovery,
+        ok: false,
+        failures: [...recovery.failures, 'missing parent session id for overnight continuation'],
+      },
+    };
+  }
+
   const continuationPrompt = [
     providerAdapter.makeContinuationPrompt({ state }),
     prompt ? `User continuation prompt: ${prompt}` : null,
@@ -169,9 +196,9 @@ export async function continueManagedSession({
   });
   const continuingState = transitionState(repoRoot, {
     status: 'continuing',
-    mode: 'context_handoff',
+    mode: autoContinued ? 'overnight' : 'context_handoff',
     parent_session_id: parentSessionId,
-  }, 'continuation_started', 'child continuation session started', now.toISOString());
+  }, 'continuation_started', autoContinued ? 'overnight child continuation session started' : 'child continuation session started', now.toISOString());
 
   const result = await runProviderCommand({
     runner,
@@ -197,6 +224,7 @@ export async function continueManagedSession({
     ...handled,
     confirmationRequired: false,
     continuationStarted: true,
+    autoContinued,
     recovery,
   };
 }

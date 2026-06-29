@@ -5,13 +5,13 @@ Continuation Layer is a task continuity guard for CLI coding agents.
 The v0 target is Codex CLI first, with a Claude Code adapter skeleton kept separate. The project handles two interruption classes:
 
 - Cooldown walls: rate limits, usage limits, 429s, and reset windows.
-- Context pressure: handoff before compaction, recovery check, and user-confirmed child continuation.
+- Context pressure: handoff before compaction, recovery check, user-confirmed child continuation, and explicit overnight automation.
 
 This project does not bypass provider limits. It waits for legal reset windows, records durable state, and reduces the risk of resuming the wrong task.
 
 ## Current Status
 
-Phase 0 through Phase 4 are complete. Phase 5 adds context handoff and user-confirmed Codex child continuation.
+Phase 0 through Phase 5 are complete. Phase 6 adds explicit overnight mode for guarded auto-continuation.
 
 ## Intended Shape
 
@@ -44,11 +44,13 @@ node bin/continuity.mjs start --dry-run "task prompt"
 node bin/continuity.mjs resume --dry-run
 node bin/continuity.mjs continue
 node bin/continuity.mjs continue --yes
+node bin/continuity.mjs overnight enable
+node bin/continuity.mjs overnight disable
 ```
 
 `init` refuses to overwrite an existing `.agent` state. `snapshot` writes `.agent/AUTO_SNAPSHOT.md`, updates `state.json`, and appends a `checkpoint_written` event.
 
-`start` and `resume` run provider CLI commands through the supervisor. `continue` writes a handoff and stops for confirmation by default; `continue --yes` runs recovery checks and starts a Codex child session with `codex fork`. Use `--dry-run` to inspect the Codex command without launching Codex.
+`start` and `resume` run provider CLI commands through the supervisor. `continue` writes a handoff and stops for confirmation by default; `continue --yes` runs recovery checks and starts a Codex child session with `codex fork`. `overnight enable` makes later `continue` calls auto-run only after handoff, parent-session, and recovery checks pass. Use `--dry-run` to inspect the Codex command without launching Codex.
 
 ## Safety Boundaries
 
@@ -56,6 +58,7 @@ node bin/continuity.mjs continue --yes
 - Do not sleep for hours inside hooks.
 - Do not auto commit.
 - Do not auto continue from incomplete handoff state.
+- Do not auto continue unless overnight mode is explicitly enabled.
 - Treat git status and git diff as source of truth during recovery.
 
 ## Repository Layout

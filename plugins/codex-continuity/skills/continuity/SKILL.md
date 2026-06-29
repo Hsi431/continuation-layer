@@ -54,6 +54,20 @@ When context pressure, compaction, or handoff is likely:
 
 Do not try to bypass provider compaction. Prefer durable handoff files before and after compaction.
 
+## Overnight Mode
+
+Overnight auto-continuation is allowed only after explicit enablement:
+
+```sh
+node bin/continuity.mjs overnight enable
+```
+
+Before any automatic continuation, verify that `.agent/HANDOFF.md` is complete, `.agent/NEXT.md` has a next action, a parent session id is known, git recovery checks pass, and the provider command will use the child-continuation path. Disable unattended continuation with:
+
+```sh
+node bin/continuity.mjs overnight disable
+```
+
 ## Cooldown Recovery
 
 When a cooldown, rate limit, usage limit, 429, or reset window appears:

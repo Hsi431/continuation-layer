@@ -24,17 +24,22 @@
 - `block_auto_compact` means handoff-before-continuation policy, not hard prevention of provider compaction.
 - Default continuation stops for user confirmation before starting a child session.
 - Recovery check failure stops continuation before the provider command is launched.
+- Overnight auto-continuation requires explicit `overnight_mode` and `auto_continue_after_handoff`.
 
 ## Overnight Mode Guardrails
 
 Automatic continuation is allowed only when:
 
 - `overnight_mode` is true.
+- `auto_continue_after_handoff` is true.
 - Handoff exists and is not stale.
 - `NEXT.md` exists.
 - Recovery check passes.
+- Parent session id is known.
 - Git state has no conflicts.
 - Recorded test state matches the handoff.
+
+`continuity overnight enable` turns on both `overnight_mode` and `auto_continue_after_handoff`. `continuity overnight disable` turns both off.
 
 ## Child Continuation Guardrails
 

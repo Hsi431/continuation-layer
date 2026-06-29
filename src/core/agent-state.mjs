@@ -205,6 +205,47 @@ export function writeMechanicalSnapshot({ cwd = process.cwd(), reason = 'manual 
   };
 }
 
+export function setOvernightMode({
+  cwd = process.cwd(),
+  enabled,
+  autoContinueAfterHandoff = enabled,
+  timestamp = nowIso(),
+} = {}) {
+  if (typeof enabled !== 'boolean') {
+    throw new Error('enabled must be a boolean');
+  }
+
+  const repoRoot = resolveRepoRoot(cwd);
+  const filePaths = paths(repoRoot);
+  const { config, state } = loadAgentState(repoRoot);
+  const nextConfig = {
+    ...config,
+    overnight_mode: enabled,
+    auto_continue_after_handoff: autoContinueAfterHandoff,
+  };
+  const nextState = {
+    ...state,
+    mode: enabled ? 'overnight' : state.mode === 'overnight' ? 'normal' : state.mode,
+    overnight_mode: enabled,
+    auto_continue_after_handoff: autoContinueAfterHandoff,
+    last_event: enabled ? 'overnight_enabled' : 'overnight_disabled',
+    updated_at: timestamp,
+  };
+  const reason = enabled ? 'overnight mode enabled' : 'overnight mode disabled';
+
+  assertValidConfig(nextConfig);
+  assertValidState(nextState);
+  writeJsonFile(filePaths.config, nextConfig);
+  saveState(repoRoot, nextState);
+  appendEvent(repoRoot, nextState, nextState.last_event, reason, timestamp);
+
+  return {
+    repoRoot,
+    config: nextConfig,
+    state: nextState,
+  };
+}
+
 export function buildContinuityContext({ cwd = process.cwd(), source = 'session start' } = {}) {
   const repoRoot = resolveRepoRoot(cwd);
   const { state } = loadAgentState(repoRoot);

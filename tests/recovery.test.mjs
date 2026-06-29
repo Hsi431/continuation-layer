@@ -44,3 +44,17 @@ test('recovery check fails when next action is missing', () => {
   assert.equal(result.ok, false);
   assert.match(result.failures.join('\n'), /\.agent\/NEXT\.md has no next action/);
 });
+
+test('recovery check fails when handoff is incomplete', () => {
+  const repo = makeRepo();
+  writeFileSync(join(repo, '.agent', 'HANDOFF.md'), '# Handoff\n\nmissing sections\n');
+
+  const result = runRecoveryCheck({
+    repoRoot: repo,
+    config: DEFAULT_CONFIG,
+    now: new Date(),
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.failures.join('\n'), /\.agent\/HANDOFF\.md is incomplete/);
+});

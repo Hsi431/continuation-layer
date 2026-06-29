@@ -18,7 +18,7 @@ None.
 
 ## Status
 
-Phase 5 implementation is complete locally. Repeat subagent review passed, and final verification passed. Ready to commit Phase 5.
+Phase 6 overnight mode is complete locally. Repeat subagent review passed, and final verification passed. Ready to commit Phase 6.
 
 ## Goal
 
@@ -26,7 +26,7 @@ Build Continuation Layer v0 for Codex CLI first, with a future Claude Code adapt
 
 ## Current Stage
 
-Phase 5 complete locally. Context handoff and continuation runtime are implemented, reviewed, and verified.
+Phase 6 complete locally. Overnight mode runtime, tests, and docs are implemented, reviewed, and verified.
 
 ## What Changed
 
@@ -122,6 +122,25 @@ Phase 5 complete locally. Context handoff and continuation runtime are implement
 - Reran `npm test`, `npm run check`, and `git diff --check`; all passed after the fix.
 - Repeat Phase 5 review passed with no blocking findings.
 - Final verification passed: `npm test`, `npm run check`, skill validator, plugin validator, and `git diff --check`.
+- Committed Phase 5 as `8bbd94b Implement context handoff continuation`.
+- Confirmed post-Phase 5 worktree was clean.
+- Started Phase 6 planning for overnight mode.
+- Refreshed `.agent/HANDOFF.md` and `.agent/NEXT.md` after the Phase 5 commit.
+- Added `setOvernightMode` to synchronize `.agent/config.json` and `.agent/state.json`.
+- Added CLI `continuity overnight enable` and `continuity overnight disable`.
+- Added supervisor auto-continuation gate: no-confirmation continuation only runs when `overnight_mode` and `auto_continue_after_handoff` are both true.
+- Kept default `continuity continue` behavior waiting for confirmation when overnight automation is off.
+- Added incomplete handoff validation to recovery checks.
+- Added tests for default-off overnight mode, enable/disable state sync, auto continuation, disabled auto-continue gate, recovery abort, incomplete handoff, and session chain traceability.
+- Updated README, source layout docs, state docs, safety docs, plugin README, and continuity skill for Phase 6 behavior.
+- Ran `npm test`, `npm run check`, skill validator, plugin validator, and `git diff --check`; all passed.
+- First Phase 6 review failed because overnight auto-continuation could launch without a known parent session id.
+- Added an auto-only parent session id guard before launching provider continuation.
+- Added a test proving overnight auto-continuation aborts without a parent session id and does not call the provider runner.
+- Updated docs and skill text to require a known parent session id for unattended continuation.
+- Reran `npm test`, `npm run check`, skill validator, plugin validator, and `git diff --check`; all passed after the fix.
+- Repeat Phase 6 review passed with no blocking findings.
+- Final verification passed: `npm test`, `npm run check`, skill validator, plugin validator, and `git diff --check`.
 
 ## Files Touched
 
@@ -196,7 +215,7 @@ Phase 5 complete locally. Context handoff and continuation runtime are implement
 
 ## Current Git State Summary
 
-Git repository on branch `master`. Phase 5 changes are verified and ready to commit.
+Git repository on branch `master`. Latest commit is `8bbd94b Implement context handoff continuation`. Phase 6 changes are not committed yet.
 
 ## Tests Run
 
@@ -243,6 +262,21 @@ Git repository on branch `master`. Phase 5 changes are verified and ready to com
 - Final Phase 5 `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
 - Final Phase 5 `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
 - Final Phase 5 `git diff --check`
+- Phase 6 local `npm test`
+- Phase 6 local `npm run check`
+- Phase 6 local `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
+- Phase 6 local `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
+- Phase 6 local `git diff --check`
+- Phase 6 post-review-fix `npm test`
+- Phase 6 post-review-fix `npm run check`
+- Phase 6 post-review-fix `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
+- Phase 6 post-review-fix `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
+- Phase 6 post-review-fix `git diff --check`
+- Final Phase 6 `npm test`
+- Final Phase 6 `npm run check`
+- Final Phase 6 `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
+- Final Phase 6 `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
+- Final Phase 6 `git diff --check`
 
 ## Test Result
 
@@ -262,22 +296,22 @@ Passed. First review failed, fix was applied, repeat review passed, and final ve
 
 ## Unfinished Work
 
-- Commit Phase 5.
+- Commit Phase 6.
 - Confirm post-commit worktree is clean.
 
 ## Next Exact Steps
 
-1. Commit Phase 5.
+1. Commit Phase 6.
 2. Confirm post-commit worktree is clean.
-3. Start Phase 6 only when requested.
+3. Start Phase 7 only when requested.
 
 ## Do Not Redo
 
 - Do not repeat Phase 0 research unless official docs or CLI behavior changed.
 - Do not repeat Phase 3 skill work unless official docs or CLI behavior changed.
-- Do not add overnight mode or Claude Code runtime as part of Phase 5.
+- Do not add Claude Code runtime as part of Phase 6.
 - Do not place provider-specific logic in core.
 
 ## Last Updated
 
-2026-06-29T18:10:37Z
+2026-06-29T18:26:55Z

@@ -2,18 +2,15 @@
 
 ## Next Action
 
-Commit Phase 5.
+Commit Phase 6.
 
 ## Target Files
 
 - `bin/continuity.mjs`
 - `src/core/agent-state.mjs`
 - `src/core/recovery.mjs`
-- `src/core/templates.mjs`
-- `src/providers/codex.mjs`
 - `src/supervisor/supervisor.mjs`
-- `tests/codex-adapter.test.mjs`
-- `tests/codex-hooks.test.mjs`
+- `tests/init-status-snapshot.test.mjs`
 - `tests/recovery.test.mjs`
 - `tests/supervisor.test.mjs`
 - `README.md`
@@ -25,17 +22,19 @@ Commit Phase 5.
 
 ## Constraints
 
-- Phase 5 only covers context handoff and continuation.
+- Phase 6 only covers overnight mode.
+- Overnight mode is off by default.
+- Auto continuation requires explicit overnight mode and auto-continue config.
 - Keep cooldown/API failure handling in the supervisor.
 - Use Codex `fork` for child continuation.
-- Default mode must require user confirmation before child startup.
-- Do not add overnight mode or Claude Code runtime.
+- Failed recovery or incomplete handoff must stop automation.
+- Do not add Claude Code runtime.
 - Keep provider-specific behavior out of core.
 
 ## First Command To Inspect
 
 ```sh
-git diff --stat
+npm test
 ```
 
 ## Stop Condition

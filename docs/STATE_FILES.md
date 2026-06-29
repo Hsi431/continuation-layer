@@ -59,6 +59,8 @@ The `.agent` directory is durable task memory for the current repository.
 
 - `block_auto_compact` means the continuation layer should route supported pre-compaction events into a handoff and stop/confirmation flow before continuing.
 - `block_auto_compact` must not attempt to bypass provider context management. If compaction still occurs, `PostCompact` records the risk and recovery prefers `.agent` files plus git state.
+- `overnight_mode` and `auto_continue_after_handoff` are both false by default.
+- Automatic continuation requires both `overnight_mode` and `auto_continue_after_handoff` to be true.
 
 ## Phase 1 Implementation
 
@@ -75,3 +77,11 @@ The `.agent` directory is durable task memory for the current repository.
 - `continuity continue --yes` runs recovery checks before starting a child session.
 - Failed recovery records `continuation_aborted`, writes a snapshot, and does not start the provider command.
 - Successful Codex child continuation records `continuation_started` and uses provider adapter `startContinuationSessionCommand`, which maps to `codex fork`.
+
+## Phase 6 Overnight State
+
+- `continuity overnight enable` writes `overnight_enabled` and synchronizes config/state `overnight_mode` and `auto_continue_after_handoff` to true.
+- `continuity overnight disable` writes `overnight_disabled` and synchronizes both fields back to false.
+- With overnight automation enabled, `continuity continue` writes handoff, runs recovery checks, and starts child continuation without `--yes`.
+- Incomplete handoff, stale handoff, missing next action, missing parent session id, git conflicts, or other recovery failures record `continuation_aborted` and do not start the provider command.
+- Session chain remains traceable through `continuation_started` and the following checkpoint event in `sessions.jsonl`.
