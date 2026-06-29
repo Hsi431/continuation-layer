@@ -2,22 +2,25 @@
 
 ## Next Action
 
-Commit Phase 1 durable state implementation, then start Phase 2 planning.
+Commit Phase 2 Codex adapter and supervisor basics, then start Phase 3 planning.
 
 ## Target Files
 
 - `bin/continuity.mjs`
+- `src/providers/`
+- `src/supervisor/`
 - `src/core/`
-- `tests/`
+- `tests/codex-adapter.test.mjs`
+- `tests/supervisor.test.mjs`
 - `README.md`
 - `docs/`
 - `.agent/`
 
 ## Constraints
 
-- Keep Phase 1 scoped to durable state, validation, init/status, and mechanical snapshot.
-- Do not add supervisor, provider adapter runtime, cooldown parser, or hooks yet.
-- Do not overwrite existing `.agent` state in `init`.
+- Keep Phase 2 scoped to Codex adapter and supervisor basics.
+- Do not add hooks, skills, context handoff, overnight mode, or Claude Code runtime yet.
+- Do not run real Codex in tests.
 
 ## First Command To Inspect
 
@@ -27,4 +30,4 @@ npm test
 
 ## Stop Condition
 
-Stop before Phase 2 if the Phase 1 commit fails or post-commit status is not clean.
+Stop before Phase 3 if Phase 2 commit fails or post-commit status is not clean.

@@ -39,6 +39,8 @@ Phase 1 implements the first four responsibilities. Recovery check, completion, 
 - Wait outside hook runtime.
 - Resume same session or start continuation session.
 
+Phase 2 implements start/resume process execution, log capture, cooldown detection, reset-time calculation, and state transitions. It does not sleep until reset yet.
+
 ## Provider Adapter Responsibilities
 
 - Start session.
@@ -49,6 +51,8 @@ Phase 1 implements the first four responsibilities. Recovery check, completion, 
 - Parse reset timestamps.
 - Build resume prompt.
 - Build continuation prompt.
+
+Phase 2 implements the Codex adapter and provider selection boundary. Claude Code remains a later skeleton.
 
 ## Plugin And Hook Responsibilities
 

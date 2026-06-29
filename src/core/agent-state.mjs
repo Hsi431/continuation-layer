@@ -143,9 +143,9 @@ export function loadAgentState(repoRoot) {
   return { config, state };
 }
 
-export function appendEvent(repoRoot, state, event, reason) {
+export function appendEvent(repoRoot, state, event, reason, timestamp = nowIso()) {
   appendJsonLine(paths(repoRoot).sessions, {
-    timestamp: nowIso(),
+    timestamp,
     task_id: state.task_id,
     provider: state.provider,
     session_id: state.current_session_id,
@@ -154,6 +154,31 @@ export function appendEvent(repoRoot, state, event, reason) {
     handoff_path: state.current_handoff_path,
     reason,
   });
+}
+
+export function saveState(repoRoot, state) {
+  assertValidState(state);
+  writeJsonFile(paths(repoRoot).state, state);
+}
+
+export function transitionState(repoRoot, changes, event, reason, timestamp = nowIso()) {
+  const { state } = loadAgentState(repoRoot);
+  const nextState = {
+    ...state,
+    ...changes,
+    last_event: event,
+    updated_at: timestamp,
+  };
+
+  saveState(repoRoot, nextState);
+  appendEvent(repoRoot, nextState, event, reason, timestamp);
+  return nextState;
+}
+
+export function writeSnapshotForState(repoRoot, state, timestamp = nowIso()) {
+  const filePaths = paths(repoRoot);
+  writeTextFile(filePaths.snapshot, buildSnapshotText(repoRoot, state, timestamp));
+  return filePaths.snapshot;
 }
 
 export function writeMechanicalSnapshot({ cwd = process.cwd(), reason = 'manual snapshot' } = {}) {
@@ -168,9 +193,9 @@ export function writeMechanicalSnapshot({ cwd = process.cwd(), reason = 'manual 
   };
 
   assertValidState(nextState);
-  writeTextFile(filePaths.snapshot, buildSnapshotText(repoRoot, nextState, timestamp));
-  writeJsonFile(filePaths.state, nextState);
-  appendEvent(repoRoot, nextState, 'checkpoint_written', reason);
+  writeSnapshotForState(repoRoot, nextState, timestamp);
+  saveState(repoRoot, nextState);
+  appendEvent(repoRoot, nextState, 'checkpoint_written', reason, timestamp);
 
   return {
     repoRoot,

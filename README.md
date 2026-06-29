@@ -11,7 +11,7 @@ This project does not bypass provider limits. It waits for legal reset windows, 
 
 ## Current Status
 
-Phase 0 is complete. Phase 1 has started with durable state, schema validation, mechanical snapshots, and the first CLI commands.
+Phase 0 and Phase 1 are complete. Phase 2 is in review-fix state with provider adapters, supervisor start/resume flow, cooldown detection, reset parsing, and log capture.
 
 ## Intended Shape
 
@@ -33,16 +33,20 @@ Phase 0 confirmed existing tools and official CLI capabilities before implementa
 5. Produced `FINDINGS.md`.
 6. Updated `PLAN.md` where real CLI behavior differed from the initial plan.
 
-## Phase 1 CLI
+## CLI
 
 ```sh
 node bin/continuity.mjs init --task-id my-task
 node bin/continuity.mjs status
 node bin/continuity.mjs status --json
 node bin/continuity.mjs snapshot
+node bin/continuity.mjs start --dry-run "task prompt"
+node bin/continuity.mjs resume --dry-run
 ```
 
 `init` refuses to overwrite an existing `.agent` state. `snapshot` writes `.agent/AUTO_SNAPSHOT.md`, updates `state.json`, and appends a `checkpoint_written` event.
+
+`start` and `resume` run provider CLI commands through the supervisor. Use `--dry-run` to inspect the Codex command without launching Codex.
 
 ## Safety Boundaries
 
