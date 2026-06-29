@@ -1,0 +1,6 @@
+interface:
+  display_name: "Continuity"
+  short_description: "Use .agent state for durable handoffs"
+  default_prompt: "Use $continuity to resume this task from .agent durable state."
+policy:
+  allow_implicit_invocation: true

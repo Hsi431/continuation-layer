@@ -2,32 +2,31 @@
 
 ## Next Action
 
-Commit Phase 2 Codex adapter and supervisor basics, then start Phase 3 planning.
+Commit Phase 3 Codex skill.
 
 ## Target Files
 
-- `bin/continuity.mjs`
-- `src/providers/`
-- `src/supervisor/`
-- `src/core/`
-- `tests/codex-adapter.test.mjs`
-- `tests/supervisor.test.mjs`
-- `README.md`
-- `docs/`
 - `.agent/`
+- `.agents/skills/continuity`
+- `plugins/codex-continuity/`
+- `README.md`
 
 ## Constraints
 
-- Keep Phase 2 scoped to Codex adapter and supervisor basics.
-- Do not add hooks, skills, context handoff, overnight mode, or Claude Code runtime yet.
-- Do not run real Codex in tests.
+- Commit only the verified Phase 3 skill/package/docs/durable-state changes.
+- Do not start Phase 4 until Phase 3 commit is confirmed and the worktree is clean.
+- Keep hooks short and do not perform long sleeps.
+- Keep cooldown/API failure handling in the supervisor, not hooks.
+- Do not add hooks, overnight mode, context handoff runtime, or Claude Code runtime to the Phase 3 commit.
+- The current user explicitly requested commit after PASS review and clean tests; do not make any other commits.
+- Keep provider-specific behavior out of core.
 
 ## First Command To Inspect
 
 ```sh
-npm test
+git status --short
 ```
 
 ## Stop Condition
 
-Stop before Phase 3 if Phase 2 commit fails or post-commit status is not clean.
+Stop if final review fails, tests fail, or git status contains unexpected files.

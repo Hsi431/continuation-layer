@@ -5,13 +5,13 @@ Continuation Layer is a task continuity guard for CLI coding agents.
 The v0 target is Codex CLI first, with a Claude Code adapter skeleton kept separate. The project handles two interruption classes:
 
 - Cooldown walls: rate limits, usage limits, 429s, and reset windows.
-- Context pressure: handoff before compaction, then explicit or overnight continuation.
+- Context pressure: handoff before compaction; continuation runtime and overnight mode are planned later phases.
 
 This project does not bypass provider limits. It waits for legal reset windows, records durable state, and reduces the risk of resuming the wrong task.
 
 ## Current Status
 
-Phase 0 and Phase 1 are complete. Phase 2 is in review-fix state with provider adapters, supervisor start/resume flow, cooldown detection, reset parsing, and log capture.
+Phase 0 through Phase 2 are complete. Phase 3 has the Codex continuity skill and plugin skill packaging implemented and under final verification.
 
 ## Intended Shape
 
@@ -60,10 +60,11 @@ node bin/continuity.mjs resume --dry-run
 
 ```text
 .agent/                         durable task state for this repo
+.agents/skills/continuity       repo-local Codex skill entry
 docs/                           architecture, safety, and research notes
-plugins/codex-continuity/       future Codex plugin package
+plugins/codex-continuity/       Codex plugin package with continuity skill
 plugins/claude-code-adapter/    future Claude Code adapter docs/skeleton
-src/                            core runtime plus future supervisor/provider/CLI code
+src/                            core runtime, provider adapters, and supervisor
 tests/                          unit and integration tests
 FINDINGS.md                     Phase 0 findings
 PLAN.md                         implementation plan
