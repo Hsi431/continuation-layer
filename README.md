@@ -1,65 +1,153 @@
 # Continuation Layer
 
-Continuation Layer is a task continuity guard for CLI coding agents.
+[繁體中文](README.zh-TW.md)
 
-The v0 target is Codex CLI first, with a Claude Code adapter skeleton kept separate. The project handles two interruption classes:
+Continuation Layer is a continuity guard for CLI coding agents.
 
-- Cooldown walls: rate limits, usage limits, 429s, and reset windows.
-- Context pressure: handoff before compaction, recovery check, user-confirmed child continuation, and explicit overnight automation.
+Long agent runs fail in predictable ways: the model hits a cooldown wall, the context window compacts away the wrong details, or a new session resumes without the exact state of the task. Continuation Layer keeps durable task memory in the repository so a coding agent can stop, hand off, recover, and continue from the right place.
 
-This project does not bypass provider limits. It waits for legal reset windows, records durable state, and reduces the risk of resuming the wrong task.
+The v0 target is Codex CLI. Claude Code support is planned as a later provider path.
+
+## What It Does
+
+- Keeps durable `.agent` state inside the repo.
+- Writes structured handoff, next-step, decision, snapshot, and session-chain files.
+- Starts Codex under a supervisor that captures logs and detects cooldowns.
+- Resumes the same Codex session after cooldown reset windows.
+- Injects continuity context through Codex lifecycle hooks.
+- Writes handoff before context-pressure continuation.
+- Starts child continuation sessions with `codex fork`, not plain resume.
+- Requires user confirmation by default before starting a child session.
+- Supports explicit overnight mode with recovery gates before unattended continuation.
+
+## Why This Exists
+
+CLI coding agents are powerful, but their runtime state is fragile. A transcript is not enough when work spans hours, compaction, provider limits, or multiple sessions.
+
+Continuation Layer treats local durable state as the source of truth:
+
+- `.agent/HANDOFF.md` explains where the task is.
+- `.agent/NEXT.md` records the next exact action.
+- `.agent/DECISIONS.md` preserves durable decisions.
+- `.agent/AUTO_SNAPSHOT.md` captures git state and runtime state.
+- `.agent/sessions.jsonl` keeps the session chain traceable.
+
+That makes recovery explicit instead of relying on memory, hidden provider storage, or a compacted summary.
 
 ## Current Status
 
-Phase 0 through Phase 5 are complete. Phase 6 adds explicit overnight mode for guarded auto-continuation.
+v0 is Codex-first and usable for the core continuity flow.
 
-## Intended Shape
+Completed:
 
-```text
-continuation-core
-codex-continuity-plugin
-continuity-supervisor
-future claude-code adapter/plugin
-```
+- Durable `.agent` state and validation.
+- Codex adapter and supervisor.
+- Cooldown detection and same-session resume.
+- Codex continuity skill and plugin package.
+- Codex lifecycle hooks for session start, stop, pre-compact, and post-compact.
+- Context handoff and child continuation through `codex fork`.
+- Guarded overnight auto-continuation.
 
-## Completed First Milestone
+Still planned before a polished v0 release:
 
-Phase 0 confirmed existing tools and official CLI capabilities before implementation:
-
-1. Read cooldown and auto resume repositories.
-2. Read handoff and continuation repositories.
-3. Verified Codex resume, plugin, skill, and hook support against official docs and CLI help.
-4. Verified Claude Code resume, plugin, skill, and hook support against official docs and CLI help.
-5. Produced `FINDINGS.md`.
-6. Updated `PLAN.md` where real CLI behavior differed from the initial plan.
-
-## CLI
-
-```sh
-node bin/continuity.mjs init --task-id my-task
-node bin/continuity.mjs status
-node bin/continuity.mjs status --json
-node bin/continuity.mjs snapshot
-node bin/continuity.mjs start --dry-run "task prompt"
-node bin/continuity.mjs resume --dry-run
-node bin/continuity.mjs continue
-node bin/continuity.mjs continue --yes
-node bin/continuity.mjs overnight enable
-node bin/continuity.mjs overnight disable
-```
-
-`init` refuses to overwrite an existing `.agent` state. `snapshot` writes `.agent/AUTO_SNAPSHOT.md`, updates `state.json`, and appends a `checkpoint_written` event.
-
-`start` and `resume` run provider CLI commands through the supervisor. `continue` writes a handoff and stops for confirmation by default; `continue --yes` runs recovery checks and starts a Codex child session with `codex fork`. `overnight enable` makes later `continue` calls auto-run only after handoff, parent-session, and recovery checks pass. Use `--dry-run` to inspect the Codex command without launching Codex.
+- Phase 7 cleanup: task completion, handoff archive, stale state cleanup, and log retention docs.
+- Phase 8 / v1 direction: Claude Code provider skeleton and later full Claude Code support.
 
 ## Safety Boundaries
 
-- Do not rotate accounts or bypass provider limits.
-- Do not sleep for hours inside hooks.
-- Do not auto commit.
-- Do not auto continue from incomplete handoff state.
-- Do not auto continue unless overnight mode is explicitly enabled.
-- Treat git status and git diff as source of truth during recovery.
+Continuation Layer is not a provider-limit bypass.
+
+It does not:
+
+- rotate accounts,
+- fake reset windows,
+- sleep for hours inside hooks,
+- auto commit user work,
+- continue from incomplete handoff state,
+- treat provider-private session storage as the core source of truth.
+
+Cooldown and API failure handling stay in the supervisor. Provider-specific behavior stays out of core runtime modules.
+
+## Quick Start
+
+Initialize durable task state inside a git repo:
+
+```sh
+node bin/continuity.mjs init --task-id my-task
+```
+
+Inspect status:
+
+```sh
+node bin/continuity.mjs status
+node bin/continuity.mjs status --json
+```
+
+Write a mechanical snapshot:
+
+```sh
+node bin/continuity.mjs snapshot
+```
+
+Run Codex under supervisor control:
+
+```sh
+node bin/continuity.mjs start "implement the next step"
+```
+
+Inspect provider commands without launching Codex:
+
+```sh
+node bin/continuity.mjs start --dry-run "task prompt"
+node bin/continuity.mjs resume --dry-run
+node bin/continuity.mjs continue --dry-run
+```
+
+Continue after context handoff:
+
+```sh
+node bin/continuity.mjs continue
+node bin/continuity.mjs continue --yes
+```
+
+`continue` writes handoff and stops for confirmation. `continue --yes` runs recovery checks and starts a Codex child session with `codex fork`.
+
+Enable guarded overnight automation:
+
+```sh
+node bin/continuity.mjs overnight enable
+node bin/continuity.mjs continue
+```
+
+Disable it:
+
+```sh
+node bin/continuity.mjs overnight disable
+```
+
+Overnight continuation only starts when handoff, recovery, git state, and parent-session checks pass.
+
+## Codex Integration
+
+The Codex plugin package lives in:
+
+```text
+plugins/codex-continuity/
+```
+
+It includes:
+
+- a continuity skill,
+- Codex hook configuration,
+- a self-contained hook command script,
+- plugin metadata.
+
+Hook behavior:
+
+- `SessionStart` injects compact continuity context.
+- `Stop` writes `.agent/AUTO_SNAPSHOT.md`.
+- `PreCompact` records context pressure and writes handoff.
+- `PostCompact` records that compaction occurred and durable `.agent` state should be preferred.
 
 ## Repository Layout
 
@@ -67,16 +155,47 @@ node bin/continuity.mjs overnight disable
 .agent/                         durable task state for this repo
 .agents/skills/continuity       repo-local Codex skill entry
 docs/                           architecture, safety, and research notes
-plugins/codex-continuity/       Codex plugin package with continuity skill
-plugins/claude-code-adapter/    future Claude Code adapter docs/skeleton
+plugins/codex-continuity/       Codex plugin package with continuity skill/hooks
+plugins/claude-code-adapter/    future Claude Code adapter notes
 src/                            core runtime, provider adapters, and supervisor
 tests/                          unit and integration tests
 FINDINGS.md                     Phase 0 findings
 PLAN.md                         implementation plan
 ```
 
-## Next Command
+## Roadmap
+
+v0:
+
+- Finish Phase 7 cleanup and release polish.
+- Keep Codex as the primary supported provider.
+- Keep automation guarded and explicit.
+
+v1:
+
+- Make Claude Code a first-class provider.
+- Add Claude `--resume`, `--continue`, and `--fork-session` support.
+- Use Claude `StopFailure` for provider-specific failure signals.
+- Add provider smoke tests that remain opt-in.
+- Improve recovery policy, circuit breaking, and handoff lifecycle.
+
+## Development
+
+Run tests:
 
 ```sh
 npm test
+```
+
+Run syntax checks:
+
+```sh
+npm run check
+```
+
+Validate the Codex skill and plugin:
+
+```sh
+python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity
+python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity
 ```

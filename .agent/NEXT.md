@@ -2,39 +2,27 @@
 
 ## Next Action
 
-Commit Phase 6.
+Commit README open-source preparation.
 
 ## Target Files
 
-- `bin/continuity.mjs`
-- `src/core/agent-state.mjs`
-- `src/core/recovery.mjs`
-- `src/supervisor/supervisor.mjs`
-- `tests/init-status-snapshot.test.mjs`
-- `tests/recovery.test.mjs`
-- `tests/supervisor.test.mjs`
 - `README.md`
-- `src/README.md`
-- `docs/SAFETY.md`
-- `docs/STATE_FILES.md`
-- `plugins/codex-continuity/README.md`
-- `plugins/codex-continuity/skills/continuity/SKILL.md`
+- `README.zh-TW.md`
+- `.agent/HANDOFF.md`
+- `.agent/NEXT.md`
 
 ## Constraints
 
-- Phase 6 only covers overnight mode.
-- Overnight mode is off by default.
-- Auto continuation requires explicit overnight mode and auto-continue config.
-- Keep cooldown/API failure handling in the supervisor.
-- Use Codex `fork` for child continuation.
-- Failed recovery or incomplete handoff must stop automation.
-- Do not add Claude Code runtime.
-- Keep provider-specific behavior out of core.
+- README should position current work as Codex-first v0, not full cross-provider v1.
+- Do not claim Phase 7 cleanup is complete.
+- Do not claim Claude Code full runtime is implemented.
+- Keep safety boundaries explicit: no provider-limit bypass, no account rotation, no auto commit.
+- Keep English and Traditional Chinese README files mutually linked.
 
 ## First Command To Inspect
 
 ```sh
-npm test
+git status --short
 ```
 
 ## Stop Condition

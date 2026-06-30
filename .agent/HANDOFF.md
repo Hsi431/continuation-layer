@@ -18,7 +18,7 @@ None.
 
 ## Status
 
-Phase 6 overnight mode is complete locally. Repeat subagent review passed, and final verification passed. Ready to commit Phase 6.
+Phase 6 is committed as `345f1f8 Implement overnight continuation mode`. Open-source README preparation is reviewed and ready to commit.
 
 ## Goal
 
@@ -26,7 +26,7 @@ Build Continuation Layer v0 for Codex CLI first, with a future Claude Code adapt
 
 ## Current Stage
 
-Phase 6 complete locally. Overnight mode runtime, tests, and docs are implemented, reviewed, and verified.
+Post-Phase 6 documentation polish complete locally. English README has been rewritten for open-source positioning, and Traditional Chinese README has been added.
 
 ## What Changed
 
@@ -141,6 +141,13 @@ Phase 6 complete locally. Overnight mode runtime, tests, and docs are implemente
 - Reran `npm test`, `npm run check`, skill validator, plugin validator, and `git diff --check`; all passed after the fix.
 - Repeat Phase 6 review passed with no blocking findings.
 - Final verification passed: `npm test`, `npm run check`, skill validator, plugin validator, and `git diff --check`.
+- Committed Phase 6 as `345f1f8 Implement overnight continuation mode`.
+- Confirmed post-Phase 6 worktree was clean.
+- Rewrote `README.md` for open-source positioning, quick start, safety boundaries, Codex integration, and roadmap.
+- Added `README.zh-TW.md` with Traditional Chinese positioning, usage, current status, and v1 direction.
+- Linked English and Traditional Chinese README files to each other.
+- Docs-only review passed with no blocking findings.
+- Verification passed: `npm test`, `npm run check`, and `git diff --check`.
 
 ## Files Touched
 
@@ -215,7 +222,7 @@ Phase 6 complete locally. Overnight mode runtime, tests, and docs are implemente
 
 ## Current Git State Summary
 
-Git repository on branch `master`. Latest commit is `8bbd94b Implement context handoff continuation`. Phase 6 changes are not committed yet.
+Git repository on branch `master`. Latest commit is `345f1f8 Implement overnight continuation mode`. README open-source preparation changes are verified and ready to commit.
 
 ## Tests Run
 
@@ -280,7 +287,7 @@ Git repository on branch `master`. Latest commit is `8bbd94b Implement context h
 
 ## Test Result
 
-Passed. First review failed, fix was applied, repeat review passed, and final verification passed.
+Passed. README documentation review and verification passed.
 
 ## Known Risks
 
@@ -296,14 +303,14 @@ Passed. First review failed, fix was applied, repeat review passed, and final ve
 
 ## Unfinished Work
 
-- Commit Phase 6.
+- Commit README open-source preparation.
 - Confirm post-commit worktree is clean.
 
 ## Next Exact Steps
 
-1. Commit Phase 6.
+1. Commit README open-source preparation.
 2. Confirm post-commit worktree is clean.
-3. Start Phase 7 only when requested.
+3. Start Phase 7 cleanup.
 
 ## Do Not Redo
 
@@ -314,4 +321,4 @@ Passed. First review failed, fix was applied, repeat review passed, and final ve
 
 ## Last Updated
 
-2026-06-29T18:26:55Z
+2026-06-30T00:24:20Z
