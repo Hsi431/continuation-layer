@@ -6,12 +6,12 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Fnatatzeng/continuation-layer.git"
+    "url": "git+https://github.com/Hsi431/continuation-layer.git"
   },
   "bugs": {
-    "url": "https://github.com/Fnatatzeng/continuation-layer/issues"
+    "url": "https://github.com/Hsi431/continuation-layer/issues"
   },
-  "homepage": "https://github.com/Fnatatzeng/continuation-layer#readme",
+  "homepage": "https://github.com/Hsi431/continuation-layer#readme",
   "keywords": [
     "codex",
     "coding-agent",

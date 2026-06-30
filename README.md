@@ -214,6 +214,8 @@ Continuation Layer creates `.agent/` in the repo:
 
 These files make task state readable, auditable, and recoverable.
 
+This repository dogfoods Continuation Layer. The committed `.agent/` directory is intentional and serves as a real project-state example. It should not contain provider-private session dumps, secrets, or machine-local logs.
+
 ## Install
 
 Requirements:
@@ -226,7 +228,7 @@ Requirements:
 Clone and install:
 
 ```sh
-git clone https://github.com/Fnatatzeng/continuation-layer.git
+git clone https://github.com/Hsi431/continuation-layer.git
 cd continuation-layer
 npm install
 ```

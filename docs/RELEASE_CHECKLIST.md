@@ -8,6 +8,7 @@ Use this checklist before publishing a v0.x preview release.
 - Confirm `package-lock.json` matches the package version.
 - Confirm `license`, `repository`, `bugs`, `homepage`, `keywords`, `bin`, `engines`, and `files` are present.
 - Confirm `README.md` and `README.zh-TW.md` describe the same release status.
+- Confirm repository metadata points to `Hsi431/continuation-layer`.
 
 ## Local Verification
 
@@ -28,6 +29,7 @@ npm run pack:check
 - README does not contain personal absolute paths.
 - `docs/DOGFOOD.md` matches the current CLI.
 - Release notes exist under `docs/releases/`.
+- The committed `.agent/` state is either removed or clearly documented as an intentional dogfood example.
 
 ## Package Hygiene
 
@@ -40,6 +42,8 @@ npm run pack:check
 - Run a precise secret scan on the current tree.
 - Confirm broad secret-word hits are false positives or documented terms.
 - Confirm no personal machine paths remain in public README/docs.
+- Confirm no incorrect GitHub owner references remain.
+- Confirm committed `.agent/` files contain no secrets, provider-private session dumps, machine-local logs, or personal absolute paths.
 - Confirm `.env` files are ignored.
 
 ## GitHub Release
@@ -48,3 +52,4 @@ npm run pack:check
 - Release title format: `Continuation Layer v0.1.0 Preview`.
 - Release notes include completed features, safety boundaries, install notes, known limitations, and roadmap.
 - CI is green on the release commit.
+- No tag or release already exists for the target version before publishing.

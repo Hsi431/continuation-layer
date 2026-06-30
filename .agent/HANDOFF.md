@@ -201,7 +201,17 @@ v0.1 preview release polish. This round is limited to formatting, README/docs po
 - Post-review-fix verification passed: `npm run format:check`, `npm run check`, `npm test`, `npm run pack:check`, `git diff --check`, and targeted stale-claim search.
 - Repeat full release readiness review passed with no blocking findings.
 - Final verification passed: `npm ci --dry-run`, `npm run format:check`, `npm run check`, `npm test`, `npm run pack:check`, Codex skill validator, Codex plugin validator, `git diff --check`, personal path scan, precise secret scan, and large-file scan excluding `node_modules`.
-- Remaining work: commit and push.
+- Committed and pushed v0.1 preview release polish as `bf55a21 Prepare v0.1 preview release`.
+- Found the GitHub owner/remote issue after publishing: old remote and public docs pointed to the incorrect previous owner; correct owner is `Hsi431/continuation-layer`.
+- Confirmed Hsi431 GitHub CLI auth is active and created `https://github.com/Hsi431/continuation-layer`.
+- Changed `origin` to `https://github.com/Hsi431/continuation-layer.git`.
+- Replaced public repo URLs in README, README.zh-TW, package metadata, and v0.1 release notes with `Hsi431/continuation-layer`.
+- Chose `.agent` public strategy: keep the committed `.agent/` directory as an intentional sanitized dogfood example.
+- Documented the `.agent` dogfood strategy in README, README.zh-TW, `docs/DOGFOOD.md`, `docs/RELEASE_CHECKLIST.md`, and `docs/releases/v0.1.0.md`.
+- Owner/path/secret scans after the fix found no incorrect owner references, no personal absolute paths, and no precise secret matches.
+- Final owner-fix verification passed: `git status --short`, `git remote -v`, wrong-owner grep, personal path grep, `npm run format:check`, `npm run check`, `npm test`, `npm run pack:check`, `npm pack --dry-run`, precise secret scan, `git diff --check`, remote tag check, and release list check.
+- Confirmed `Hsi431/continuation-layer` is public, has the expected description/topics, and has no existing tags/releases before the first push.
+- Remaining work: commit, push to `origin/master`, then check CI on `Hsi431/continuation-layer`.
 
 ## Files Touched
 
@@ -374,10 +384,26 @@ Git repository on branch `master`. Latest committed baseline is `5aa3539 Polish 
 - v0.1 final personal path scan
 - v0.1 final precise secret scan
 - v0.1 final large-file scan excluding `node_modules`
+- owner-fix remote check
+- owner-fix wrong-owner grep
+- owner-fix personal path grep
+- owner-fix Hsi431 URL grep
+- owner-fix precise `.agent`/docs secret scan
+- owner-fix final `npm run format:check`
+- owner-fix final `npm run check`
+- owner-fix final `npm test`
+- owner-fix final `npm run pack:check`
+- owner-fix final `npm pack --dry-run`
+- owner-fix final `git diff --check`
+- owner-fix final wrong-owner grep
+- owner-fix final personal path grep
+- owner-fix final precise secret scan
+- owner-fix final remote tag check
+- owner-fix final release list check
 
 ## Test Result
 
-v0.1 formatting/package review passed. First full release readiness review failed on two documentation overclaims; fixes were applied and verified. Repeat full release readiness review passed. Final verification passed. Commit and push are pending.
+v0.1 formatting/package review passed. First full release readiness review failed on two documentation overclaims; fixes were applied and verified. Repeat full release readiness review passed. Final verification passed. Owner/remote fix final verification passed. Commit and push are pending.
 
 ## Known Risks
 
@@ -393,14 +419,16 @@ v0.1 formatting/package review passed. First full release readiness review faile
 
 ## Unfinished Work
 
-- Commit v0.1 preview release polish.
-- Push to `origin/master`.
+- Commit owner/metadata final polish.
+- Push to `origin/master` at `Hsi431/continuation-layer`.
+- Check GitHub Actions status.
 
 ## Next Exact Steps
 
 1. Run subagent review for baseline v0.1 preview release readiness.
-2. Commit v0.1 preview release polish.
+2. Commit owner/metadata final polish.
 3. Push to `origin/master`.
+4. Check GitHub Actions status.
 
 ## Do Not Redo
 
@@ -411,4 +439,4 @@ v0.1 formatting/package review passed. First full release readiness review faile
 
 ## Last Updated
 
-2026-06-30T04:01:10Z
+2026-06-30T08:52:27Z

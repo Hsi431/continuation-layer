@@ -216,6 +216,8 @@ Continuation Layer 會在你的 repo 裡建立 `.agent/`：
 
 這些檔案讓 agent 的任務狀態變成可讀、可查、可恢復。
 
+這個 repository 也 dogfood Continuation Layer。已提交的 `.agent/` 目錄是刻意保留的真實 project-state example，不應包含 provider-private session dumps、secrets 或 machine-local logs。
+
 ## 安裝
 
 需求：
@@ -228,7 +230,7 @@ Continuation Layer 會在你的 repo 裡建立 `.agent/`：
 Clone 並安裝：
 
 ```sh
-git clone https://github.com/Fnatatzeng/continuation-layer.git
+git clone https://github.com/Hsi431/continuation-layer.git
 cd continuation-layer
 npm install
 ```

@@ -2,6 +2,8 @@
 
 Use this smoke test before a preview release. It avoids real provider calls unless you intentionally remove `--dry-run`.
 
+This repository intentionally commits a sanitized `.agent/` directory as a dogfood example. Before publishing, confirm it has no provider-private session dumps, secrets, machine-local logs, or personal absolute paths.
+
 ## 1. Prepare a test repo
 
 ```sh

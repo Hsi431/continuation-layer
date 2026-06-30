@@ -2,36 +2,27 @@
 
 ## Next Action
 
-Commit and push v0.1 preview release polish.
+Verify, commit, and push Hsi431 owner fix.
 
 ## Target Files
 
 - `package.json`
-- `.prettierrc`
-- `.github/workflows/ci.yml`
 - `README.md`
 - `README.zh-TW.md`
 - `docs/RELEASE_CHECKLIST.md`
 - `docs/releases/v0.1.0.md`
 - `docs/DOGFOOD.md`
-- `bin/continuity.mjs`
-- `src/**/*.mjs`
-- `tests/**/*.mjs`
-- `plugins/**/*.mjs`
-- `plugins/**/*.md`
-- `.agents/**/*.md`
 - `.agent/HANDOFF.md`
 - `.agent/NEXT.md`
 
 ## Constraints
 
-- This round is release polish only; do not add major runtime features.
-- Keep Claude Code as v1/future path.
-- Do not add account rotation, provider-limit bypass, autonomous loops, auto PR, or auto commit behavior.
-- README must not contain personal absolute paths.
-- Formatting must not change behavior.
-- CI must not invoke real Codex provider sessions.
-- Package must not include active `.agent` state or private logs.
+- Only fix GitHub owner/metadata/docs and release hygiene.
+- Correct owner is `Hsi431/continuation-layer`.
+- Do not push to the old incorrect owner.
+- Do not create tags/releases unless explicitly requested.
+- Keep `.agent` as a sanitized dogfood example.
+- Do not add runtime features.
 
 ## First Command To Inspect
 
@@ -41,4 +32,4 @@ npm run format:check
 
 ## Stop Condition
 
-Stop if final verification fails.
+Stop if final verification fails or remote is not `Hsi431/continuation-layer`.
