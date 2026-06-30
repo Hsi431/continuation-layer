@@ -2,30 +2,26 @@
 
 ## Next Action
 
-Commit Phase 7.
+Commit open-source readiness changes.
 
 ## Target Files
 
-- `bin/continuity.mjs`
-- `src/core/agent-state.mjs`
-- `src/core/files.mjs`
-- `src/core/templates.mjs`
-- `tests/init-status-snapshot.test.mjs`
+- `.gitignore`
+- `LICENSE`
+- `package.json`
 - `README.md`
 - `README.zh-TW.md`
-- `docs/STATE_FILES.md`
-- `docs/SAFETY.md`
 - `.agent/HANDOFF.md`
 - `.agent/NEXT.md`
 
 ## Constraints
 
-- Phase 7 only covers completion and cleanup.
-- Task can be marked complete.
-- Old handoff state should be archived.
-- New tasks should not be polluted by stale handoff files.
-- Log retention and handoff rotation must be documented.
-- Do not add Claude Code runtime.
+- README should be marketing-friendly but technically accurate.
+- License must be Apache-2.0.
+- Package metadata should not remain private.
+- NPM package should not include active `.agent` state.
+- Do not claim Claude Code full runtime is implemented.
+- Do not weaken safety boundaries: no account rotation, no provider-limit bypass, no auto commit.
 
 ## First Command To Inspect
 

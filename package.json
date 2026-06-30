@@ -1,9 +1,20 @@
 {
   "name": "continuation-layer",
   "version": "0.0.0",
-  "private": true,
   "description": "Continuity guard for CLI coding agents.",
+  "license": "Apache-2.0",
   "type": "module",
+  "files": [
+    "bin/",
+    "src/",
+    "plugins/",
+    "docs/",
+    "README.md",
+    "README.zh-TW.md",
+    "LICENSE",
+    "FINDINGS.md",
+    "PLAN.md"
+  ],
   "bin": {
     "continuity": "./bin/continuity.mjs"
   },

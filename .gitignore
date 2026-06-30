@@ -4,7 +4,8 @@ coverage/
 .env
 .DS_Store
 .agent/logs/*
+.agent/handoffs/*
 .agent/snapshots/*
 !.agent/logs/.gitkeep
+!.agent/handoffs/.gitkeep
 !.agent/snapshots/.gitkeep
-

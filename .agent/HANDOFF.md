@@ -18,7 +18,7 @@ None.
 
 ## Status
 
-Phase 7 completion and cleanup is complete locally. Repeat subagent review passed, and final verification passed. Ready to commit Phase 7.
+Phase 7 is committed as `d5825c7 Implement task cleanup lifecycle`. Apache-2.0 and open-source readiness polish is complete locally after review fixes and final verification. Ready to commit.
 
 ## Goal
 
@@ -26,7 +26,7 @@ Build Continuation Layer v0 for Codex CLI first, with a future Claude Code adapt
 
 ## Current Stage
 
-Phase 7 complete locally. Completion/cleanup runtime, tests, and docs are implemented, reviewed, and verified.
+Post-Phase-7 open-source readiness. README/README.zh-TW were rewritten with a stronger product pitch, Apache-2.0 licensing was added, package metadata was updated, cooldown wording was corrected after review, and repeat review passed.
 
 ## What Changed
 
@@ -164,6 +164,17 @@ Phase 7 complete locally. Completion/cleanup runtime, tests, and docs are implem
 - Reran `npm test`, `npm run check`, and `git diff --check`; all passed after the fix.
 - Repeat Phase 7 review passed with no blocking findings.
 - Final verification passed: `npm test`, `npm run check`, skill validator, plugin validator, and `git diff --check`.
+- Committed Phase 7 as `d5825c7 Implement task cleanup lifecycle`.
+- Rewrote `README.md` and `README.zh-TW.md` with a clearer product/marketing pitch and updated Phase 7 status.
+- Added Apache-2.0 `LICENSE`.
+- Updated `package.json` with `license: Apache-2.0`, removed `private: true`, and added package `files` so `.agent` state is not included in npm tarballs.
+- Updated `.gitignore` to ignore `.agent/handoffs/*` while preserving `.gitkeep`.
+- Ran open-source readiness checks: tests, syntax check, skill validator, plugin validator, `git diff --check`, secret scans, large-file scan, and `npm pack --dry-run`.
+- First open-source readiness review failed because README cooldown language overstated long-wait/auto-resume behavior.
+- Fixed README/README.zh-TW to say cooldown reset time is recorded and same-session resume occurs when resume is invoked after reset.
+- Reran `npm test`, `npm run check`, `git diff --check`, and searched for stale wait/resume wording; all passed.
+- Repeat open-source readiness review passed with no blocking findings.
+- Final open-source readiness verification passed: `npm test`, `npm run check`, skill validator, plugin validator, `git diff --check`, precise secret scan, large-file scan, and `npm pack --dry-run`.
 
 ## Files Touched
 
@@ -238,7 +249,7 @@ Phase 7 complete locally. Completion/cleanup runtime, tests, and docs are implem
 
 ## Current Git State Summary
 
-Git repository on branch `master`. Latest commit is `531ac2f Prepare open source README`. Phase 7 changes are verified and ready to commit.
+Git repository on branch `master`. Latest committed baseline is `d5825c7 Implement task cleanup lifecycle`. Open-source readiness changes are verified and ready to commit.
 
 ## Tests Run
 
@@ -300,10 +311,18 @@ Git repository on branch `master`. Latest commit is `531ac2f Prepare open source
 - Final Phase 6 `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
 - Final Phase 6 `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
 - Final Phase 6 `git diff --check`
+- Open-source readiness final `npm test`
+- Open-source readiness final `npm run check`
+- Open-source readiness final `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
+- Open-source readiness final `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
+- Open-source readiness final `git diff --check`
+- Open-source readiness final precise secret scan
+- Open-source readiness final large-file scan
+- Open-source readiness final `npm pack --dry-run`
 
 ## Test Result
 
-Passed. First review failed, fix was applied, repeat review passed, and final verification passed.
+Passed. First open-source readiness review failed, the cooldown wording fix was applied, repeat review passed, and final verification passed.
 
 ## Known Risks
 
@@ -319,14 +338,14 @@ Passed. First review failed, fix was applied, repeat review passed, and final ve
 
 ## Unfinished Work
 
-- Commit Phase 7.
+- Commit Apache/README/open-source readiness changes.
 - Confirm post-commit worktree is clean.
 
 ## Next Exact Steps
 
-1. Commit Phase 7.
-2. Confirm post-commit worktree is clean.
-3. Start Phase 8 only when requested.
+1. Run final verification.
+2. Commit open-source readiness changes.
+3. Confirm post-commit worktree is clean.
 
 ## Do Not Redo
 
@@ -337,4 +356,4 @@ Passed. First review failed, fix was applied, repeat review passed, and final ve
 
 ## Last Updated
 
-2026-06-30T00:35:00Z
+2026-06-30T02:11:29Z
