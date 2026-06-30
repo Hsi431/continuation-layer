@@ -24,6 +24,54 @@ Not by rotating accounts or bypassing limits.
 It works through durable state that is local, inspectable, traceable, and recoverable.
 ```
 
+## Problem / Before-After
+
+| Before                                         | After                                                     |
+| ---------------------------------------------- | --------------------------------------------------------- |
+| Cooldown walls stop the task mid-run           | Supervisor records cooldown state and legal resume time   |
+| Context compaction can drop key decisions      | Handoff is written before continuation                    |
+| Resume can look connected but lose task intent | `.agent` durable state is read before continuing          |
+| New sessions rescan the repo and burn tokens   | Child sessions recover from handoff, git status, and diff |
+| Overnight runs need constant babysitting       | Overnight mode is explicit and guarded by recovery checks |
+
+## Highlights
+
+- Codex-first v0.1 preview.
+- Same-session resume state after recorded cooldown reset.
+- Handoff before continuation under context pressure.
+- Child continuation uses `codex fork`.
+- `.agent` durable state is the source of truth.
+- Parent/child session chain is traceable.
+- Overnight mode is off by default and must be explicitly enabled.
+- Failed recovery checks stop automation.
+- Supervisor owns cooldown detection and resume state.
+- Hooks do short lifecycle work and do not sleep for hours.
+- Task completion / archive / cleanup is implemented.
+- No account rotation.
+- No provider-limit bypass.
+- No automatic commits.
+
+## Safety Boundaries
+
+Continuation Layer is not a provider-limit bypass tool.
+
+It does not:
+
+- rotate accounts,
+- fake reset windows,
+- sleep for hours inside hooks,
+- auto commit,
+- open PRs automatically,
+- force continuation from incomplete handoff,
+- treat private provider session storage as core state,
+- treat compacted summaries as the only source of truth.
+
+It does one thing:
+
+```text
+Make long tasks pause legally, hand off explicitly, and recover safely.
+```
+
 ## The Flow
 
 ```mermaid
@@ -114,7 +162,7 @@ By default, Continuation Layer will not start a child session on its own.
 If you want unattended continuation while you sleep or step away, enable overnight mode:
 
 ```sh
-node bin/continuity.mjs overnight enable
+continuity overnight enable
 ```
 
 Once enabled, a completed context handoff can auto-start child continuation. It still checks:
@@ -131,18 +179,18 @@ If recovery fails, automation stops and waits for you.
 
 ### 4. Completed tasks do not pollute new tasks
 
-Phase 7 adds cleanup lifecycle commands.
+v0.1 includes cleanup lifecycle commands.
 
 Mark the active task complete:
 
 ```sh
-node bin/continuity.mjs complete
+continuity complete
 ```
 
 Start a fresh task:
 
 ```sh
-node bin/continuity.mjs new-task --task-id next-task
+continuity new-task --task-id next-task
 ```
 
 The active handoff and snapshot are archived before new active state is written. A new task does not inherit stale handoff text from the previous task.
@@ -166,38 +214,72 @@ Continuation Layer creates `.agent/` in the repo:
 
 These files make task state readable, auditable, and recoverable.
 
-## Usage
+## Install
+
+Requirements:
+
+- Node.js 20 or newer.
+- Git.
+- Codex CLI installed and authenticated.
+- A git repository where `.agent/` durable state can be written.
+
+Clone and install:
+
+```sh
+git clone https://github.com/Fnatatzeng/continuation-layer.git
+cd continuation-layer
+npm install
+```
+
+Use from the source tree:
+
+```sh
+node bin/continuity.mjs status
+```
+
+Or link the CLI locally:
+
+```sh
+npm link
+continuity status
+```
+
+The Codex plugin package is included under `plugins/codex-continuity/`. For local dogfooding, install or link that plugin through your Codex plugin workflow, then start a new Codex thread so hooks and skills are loaded. Without plugin installation, the CLI and supervisor still work from the source tree.
+
+## Quick Start
+
+From the repo you want to protect:
 
 Initialize:
 
 ```sh
-node bin/continuity.mjs init --task-id refactor-auth
+continuity init --task-id refactor-auth
 ```
 
 Check status:
 
 ```sh
-node bin/continuity.mjs status
-node bin/continuity.mjs status --json
+continuity status
+continuity status --json
 ```
 
 Start Codex under supervisor:
 
 ```sh
-node bin/continuity.mjs start "refactor the auth module safely"
+continuity start "refactor the auth module safely"
 ```
 
 Write a snapshot:
 
 ```sh
-node bin/continuity.mjs snapshot
+continuity snapshot
 ```
 
 Continue after context handoff:
 
 ```sh
-node bin/continuity.mjs continue
-node bin/continuity.mjs continue --yes
+continuity continue
+continuity continue --yes
 ```
 
 `continue` writes handoff and waits for confirmation. `continue --yes` runs recovery checks and starts a Codex child session with `codex fork`.
@@ -205,39 +287,30 @@ node bin/continuity.mjs continue --yes
 Overnight mode:
 
 ```sh
-node bin/continuity.mjs overnight enable
-node bin/continuity.mjs continue
+continuity overnight enable
+continuity continue
 ```
 
 Disable it:
 
 ```sh
-node bin/continuity.mjs overnight disable
+continuity overnight disable
 ```
 
 Completion and cleanup:
 
 ```sh
-node bin/continuity.mjs complete
-node bin/continuity.mjs new-task --task-id next-task
+continuity complete
+continuity new-task --task-id next-task
 ```
 
-## Highlights
+Dry-run provider commands without launching Codex:
 
-- Codex-first v0.
-- Same-session resume after recorded cooldown reset.
-- Handoff before continuation under context pressure.
-- Child continuation uses `codex fork`.
-- `.agent` durable state is the source of truth.
-- Parent/child session chain is traceable.
-- Overnight mode is off by default and must be explicitly enabled.
-- Failed recovery checks stop automation.
-- Supervisor owns cooldown detection and resume state.
-- Hooks do short lifecycle work and do not sleep for hours.
-- Task completion / archive / cleanup is implemented.
-- No account rotation.
-- No provider-limit bypass.
-- No automatic commits.
+```sh
+continuity start --dry-run "refactor the auth module safely"
+continuity resume --dry-run
+continuity continue --dry-run
+```
 
 ## Codex Integration
 
@@ -256,33 +329,12 @@ It includes:
 
 Hook behavior:
 
-| Hook | Behavior |
-| --- | --- |
-| `SessionStart` | Inject compact continuity context |
-| `Stop` | Write `.agent/AUTO_SNAPSHOT.md` |
-| `PreCompact` | Record context pressure and write handoff |
-| `PostCompact` | Record compaction and prefer `.agent` durable state |
-
-## Safety Boundaries
-
-Continuation Layer is not a provider-limit bypass tool.
-
-It does not:
-
-- rotate accounts,
-- fake reset windows,
-- sleep for hours inside hooks,
-- auto commit,
-- open PRs automatically,
-- force continuation from incomplete handoff,
-- treat private provider session storage as core state,
-- treat compacted summaries as the only source of truth.
-
-It does one thing:
-
-```text
-Make long tasks pause legally, hand off explicitly, and recover safely.
-```
+| Hook           | Behavior                                            |
+| -------------- | --------------------------------------------------- |
+| `SessionStart` | Inject compact continuity context                   |
+| `Stop`         | Write `.agent/AUTO_SNAPSHOT.md`                     |
+| `PreCompact`   | Record context pressure and write handoff           |
+| `PostCompact`  | Record compaction and prefer `.agent` durable state |
 
 ## Current Status
 
@@ -300,9 +352,18 @@ Completed:
 - Guarded overnight auto-continuation
 - Completion / archive / cleanup
 
+## Known Limitations
+
+- v0.1 is Codex-first.
+- Claude Code is documented as a future v1 provider path, not a first-class runtime yet.
+- Provider CLI behavior and private session storage can change; private session storage is diagnostics only, not core state.
+- The project is tested mainly through local unit/integration tests and dogfooding flows.
+- Context continuation asks for user confirmation unless overnight mode is explicitly enabled.
+- Real provider smoke tests should stay opt-in and are not part of CI.
+
 ## Roadmap
 
-### v0
+### v0.1
 
 - Codex CLI as the primary provider.
 - Safe cooldown resume state.
@@ -310,6 +371,13 @@ Completed:
 - Guarded overnight mode.
 - Completion / archive / cleanup.
 - Release polish and packaging.
+
+### v0.x
+
+- Dogfood feedback.
+- Packaging polish.
+- Clearer plugin installation flow.
+- Optional provider smoke tests.
 
 ### v1
 
@@ -331,8 +399,6 @@ plugins/codex-continuity/       Codex plugin package
 plugins/claude-code-adapter/    future Claude Code adapter notes
 src/                            core runtime, providers, supervisor
 tests/                          unit and integration tests
-FINDINGS.md                     Phase 0 findings
-PLAN.md                         implementation plan
 ```
 
 ## Development
@@ -349,12 +415,21 @@ Run syntax checks:
 npm run check
 ```
 
-Validate Codex skill and plugin:
+Run formatting checks:
 
 ```sh
-python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity
-python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity
+npm run format:check
 ```
+
+Check the package contents:
+
+```sh
+npm run pack:check
+```
+
+If you have local Codex skill/plugin validators installed, validate the packaged plugin with the validator paths for your environment.
+
+For manual release checks, see `docs/RELEASE_CHECKLIST.md` and `docs/DOGFOOD.md`.
 
 ## License
 

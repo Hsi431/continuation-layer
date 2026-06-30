@@ -18,7 +18,7 @@ None.
 
 ## Status
 
-Phase 7 is committed as `d5825c7 Implement task cleanup lifecycle`. Apache-2.0 and open-source readiness polish is complete locally after review fixes and final verification. Ready to commit.
+Open-source README/license polish was committed as `5aa3539 Polish open source README and license` and pushed to `origin/master`. v0.1 preview release polish is in progress; baseline review found formatting, package metadata, README path, CI, and release-doc gaps.
 
 ## Goal
 
@@ -26,7 +26,7 @@ Build Continuation Layer v0 for Codex CLI first, with a future Claude Code adapt
 
 ## Current Stage
 
-Post-Phase-7 open-source readiness. README/README.zh-TW were rewritten with a stronger product pitch, Apache-2.0 licensing was added, package metadata was updated, cooldown wording was corrected after review, and repeat review passed.
+v0.1 preview release polish. This round is limited to formatting, README/docs polish, package metadata, CI, release hygiene, install experience, and maintainability. No new provider/runtime features.
 
 ## What Changed
 
@@ -175,6 +175,33 @@ Post-Phase-7 open-source readiness. README/README.zh-TW were rewritten with a st
 - Reran `npm test`, `npm run check`, `git diff --check`, and searched for stale wait/resume wording; all passed.
 - Repeat open-source readiness review passed with no blocking findings.
 - Final open-source readiness verification passed: `npm test`, `npm run check`, skill validator, plugin validator, `git diff --check`, precise secret scan, large-file scan, and `npm pack --dry-run`.
+- Committed and pushed open-source README/license polish as `5aa3539 Polish open source README and license`.
+- Started v0.1 preview release polish baseline review.
+- Baseline findings: README/README.zh-TW still contain personal `<home>/...` validator paths, package version is still `0.0.0`, CI is missing, release checklist/release notes/dogfood docs are missing, and formatting scripts/config are missing.
+- Confirmed `npm pack --dry-run` currently excludes `.agent` state but still reports package version `0.0.0`.
+- Confirmed repo worktree was clean before v0.1 release polish edits.
+- Added Prettier as a dev dependency with `package-lock.json`.
+- Added package scripts for `format`, `format:check`, and `pack:check`.
+- Expanded `npm run check` to syntax-check all `.mjs` files under `src`, `tests`, and `plugins`.
+- Updated package metadata to v0.1.0 with repository, bugs, homepage, keywords, and user-facing package files.
+- Ran `npm run format`; this formatted source, tests, plugin files, markdown/json/yaml, and tracked `.agent` markdown/json.
+- Sanitized tracked `.agent/state.json` `repo_path` from the local absolute path to `.`.
+- Formatting/package segment verification passed: `npm run format:check`, `npm run check`, and `npm test`.
+- Formatting/package focused subagent review passed.
+- Reworked README.md and README.zh-TW.md into external v0.1 preview homepages with problem/before-after, highlights, early safety boundaries, install requirements, quick start, dry-run usage, known limitations, and v0.1/v0.x/v1 roadmap.
+- Removed personal absolute paths from README, docs, and tracked `.agent` state/handoff.
+- Updated stale docs so recovery checks, overnight mode, hooks, and cleanup no longer appear as future work.
+- Added GitHub Actions CI at `.github/workflows/ci.yml` for `npm ci`, `npm run format:check`, `npm run check`, `npm test`, and `npm run pack:check`.
+- Added `docs/RELEASE_CHECKLIST.md`, `docs/releases/v0.1.0.md`, and `docs/DOGFOOD.md`.
+- Updated packaged continuity skill examples to use the installed `continuity` CLI.
+- Docs/CI segment verification passed: `npm run format:check`, `npm run check`, `npm test`, `npm run pack:check`, precise path scan, precise secret scan, `git diff --check`, and large-file scan excluding `node_modules`.
+- Full release readiness review failed on two documentation overclaims: `docs/DOGFOOD.md` overstated `continue --dry-run` side effects, and `docs/SAFETY.md` claimed a test-state-to-handoff comparison that recovery does not implement.
+- Fixed `docs/DOGFOOD.md` to say `continue --dry-run` only prints the provider command and does not launch a provider session.
+- Removed the unsupported test-state matching guardrail from `docs/SAFETY.md`.
+- Post-review-fix verification passed: `npm run format:check`, `npm run check`, `npm test`, `npm run pack:check`, `git diff --check`, and targeted stale-claim search.
+- Repeat full release readiness review passed with no blocking findings.
+- Final verification passed: `npm ci --dry-run`, `npm run format:check`, `npm run check`, `npm test`, `npm run pack:check`, Codex skill validator, Codex plugin validator, `git diff --check`, personal path scan, precise secret scan, and large-file scan excluding `node_modules`.
+- Remaining work: commit and push.
 
 ## Files Touched
 
@@ -249,7 +276,7 @@ Post-Phase-7 open-source readiness. README/README.zh-TW were rewritten with a st
 
 ## Current Git State Summary
 
-Git repository on branch `master`. Latest committed baseline is `d5825c7 Implement task cleanup lifecycle`. Open-source readiness changes are verified and ready to commit.
+Git repository on branch `master`. Latest committed baseline is `5aa3539 Polish open source README and license`, pushed to `origin/master`. v0.1 preview release polish edits are in progress.
 
 ## Tests Run
 
@@ -262,18 +289,18 @@ Git repository on branch `master`. Latest committed baseline is `d5825c7 Impleme
 - `node bin/continuity.mjs resume --dry-run`
 - Phase 3 baseline `npm test`
 - Phase 3 baseline `npm run check`
-- `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
-- `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
+- `python3 <home>/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
+- `python3 <home>/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
 - Final `npm test`
 - Final `npm run check`
-- Final `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
-- Final `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
+- Final `python3 <home>/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
+- Final `python3 <home>/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
 - Final `git diff --check`
 - `node bin/continuity.mjs snapshot`
 - Repeat final `npm test`
 - Repeat final `npm run check`
-- Repeat final `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
-- Repeat final `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
+- Repeat final `python3 <home>/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
+- Repeat final `python3 <home>/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
 - Repeat final `git diff --check`
 - Phase 4 baseline `npm test`
 - Phase 4 baseline `npm run check`
@@ -281,8 +308,8 @@ Git repository on branch `master`. Latest committed baseline is `d5825c7 Impleme
 - Phase 4 first local `npm run check`
 - Final Phase 4 `npm test`
 - Final Phase 4 `npm run check`
-- Final Phase 4 `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
-- Final Phase 4 `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
+- Final Phase 4 `python3 <home>/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
+- Final Phase 4 `python3 <home>/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
 - Final Phase 4 `git diff --check`
 - Phase 5 baseline `npm test`
 - Phase 5 baseline `npm run check`
@@ -293,36 +320,64 @@ Git repository on branch `master`. Latest committed baseline is `d5825c7 Impleme
 - Phase 5 segment 1 post-review-fix `git diff --check`
 - Final Phase 5 `npm test`
 - Final Phase 5 `npm run check`
-- Final Phase 5 `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
-- Final Phase 5 `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
+- Final Phase 5 `python3 <home>/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
+- Final Phase 5 `python3 <home>/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
 - Final Phase 5 `git diff --check`
 - Phase 6 local `npm test`
 - Phase 6 local `npm run check`
-- Phase 6 local `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
-- Phase 6 local `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
+- Phase 6 local `python3 <home>/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
+- Phase 6 local `python3 <home>/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
 - Phase 6 local `git diff --check`
 - Phase 6 post-review-fix `npm test`
 - Phase 6 post-review-fix `npm run check`
-- Phase 6 post-review-fix `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
-- Phase 6 post-review-fix `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
+- Phase 6 post-review-fix `python3 <home>/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
+- Phase 6 post-review-fix `python3 <home>/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
 - Phase 6 post-review-fix `git diff --check`
 - Final Phase 6 `npm test`
 - Final Phase 6 `npm run check`
-- Final Phase 6 `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
-- Final Phase 6 `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
+- Final Phase 6 `python3 <home>/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
+- Final Phase 6 `python3 <home>/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
 - Final Phase 6 `git diff --check`
 - Open-source readiness final `npm test`
 - Open-source readiness final `npm run check`
-- Open-source readiness final `python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
-- Open-source readiness final `python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
+- Open-source readiness final `python3 <home>/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity`
+- Open-source readiness final `python3 <home>/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity`
 - Open-source readiness final `git diff --check`
 - Open-source readiness final precise secret scan
 - Open-source readiness final large-file scan
 - Open-source readiness final `npm pack --dry-run`
+- v0.1 formatting/package segment `npm run format:check`
+- v0.1 formatting/package segment `npm run check`
+- v0.1 formatting/package segment `npm test`
+- v0.1 docs/CI segment `npm run format:check`
+- v0.1 docs/CI segment `npm run check`
+- v0.1 docs/CI segment `npm test`
+- v0.1 docs/CI segment `npm run pack:check`
+- v0.1 docs/CI segment precise path scan
+- v0.1 docs/CI segment precise secret scan
+- v0.1 docs/CI segment `git diff --check`
+- v0.1 docs/CI segment large-file scan excluding `node_modules`
+- v0.1 post-review-fix `npm run format:check`
+- v0.1 post-review-fix `npm run check`
+- v0.1 post-review-fix `npm test`
+- v0.1 post-review-fix `npm run pack:check`
+- v0.1 post-review-fix `git diff --check`
+- v0.1 post-review-fix targeted stale-claim search
+- v0.1 final `npm ci --dry-run`
+- v0.1 final `npm run format:check`
+- v0.1 final `npm run check`
+- v0.1 final `npm test`
+- v0.1 final `npm run pack:check`
+- v0.1 final Codex skill validator
+- v0.1 final Codex plugin validator
+- v0.1 final `git diff --check`
+- v0.1 final personal path scan
+- v0.1 final precise secret scan
+- v0.1 final large-file scan excluding `node_modules`
 
 ## Test Result
 
-Passed. First open-source readiness review failed, the cooldown wording fix was applied, repeat review passed, and final verification passed.
+v0.1 formatting/package review passed. First full release readiness review failed on two documentation overclaims; fixes were applied and verified. Repeat full release readiness review passed. Final verification passed. Commit and push are pending.
 
 ## Known Risks
 
@@ -338,14 +393,14 @@ Passed. First open-source readiness review failed, the cooldown wording fix was 
 
 ## Unfinished Work
 
-- Commit Apache/README/open-source readiness changes.
-- Confirm post-commit worktree is clean.
+- Commit v0.1 preview release polish.
+- Push to `origin/master`.
 
 ## Next Exact Steps
 
-1. Run final verification.
-2. Commit open-source readiness changes.
-3. Confirm post-commit worktree is clean.
+1. Run subagent review for baseline v0.1 preview release readiness.
+2. Commit v0.1 preview release polish.
+3. Push to `origin/master`.
 
 ## Do Not Redo
 
@@ -356,4 +411,4 @@ Passed. First open-source readiness review failed, the cooldown wording fix was 
 
 ## Last Updated
 
-2026-06-30T02:11:29Z
+2026-06-30T04:01:10Z

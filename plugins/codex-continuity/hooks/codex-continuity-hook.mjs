@@ -45,7 +45,9 @@ function runHook(command, repoRoot, trigger) {
 
   if (command === 'pre-compact') {
     recordContextPressure(repoRoot, trigger);
-    return systemMessage('continuity handoff requested before compaction; do not bypass provider compaction');
+    return systemMessage(
+      'continuity handoff requested before compaction; do not bypass provider compaction',
+    );
   }
 
   if (command === 'post-compact') {
@@ -78,7 +80,12 @@ function parseInvocation(argv, env, stdinText) {
   }
 
   const payload = parsePayload(stdinText) ?? parsePayload(env.CONTINUITY_HOOK_PAYLOAD) ?? {};
-  options.cwd ??= payload.cwd ?? payload.working_directory ?? payload.workspace?.cwd ?? payload.project?.path ?? null;
+  options.cwd ??=
+    payload.cwd ??
+    payload.working_directory ??
+    payload.workspace?.cwd ??
+    payload.project?.path ??
+    null;
   options.trigger = options.trigger === 'unknown' ? hookTrigger(payload) : options.trigger;
   return options;
 }
@@ -132,20 +139,37 @@ function writeMechanicalSnapshot(repoRoot, reason) {
 
 function recordContextPressure(repoRoot, trigger) {
   const timestamp = nowIso();
-  const pressureState = transitionState(repoRoot, {
-    status: 'waiting_for_user',
-    mode: 'context_handoff',
-  }, 'context_pressure_detected', `pre-compact hook: ${trigger}`, timestamp);
-  const nextState = writeContextHandoffForState(repoRoot, pressureState, `pre-compact hook: ${trigger}`, timestamp);
+  const pressureState = transitionState(
+    repoRoot,
+    {
+      status: 'waiting_for_user',
+      mode: 'context_handoff',
+    },
+    'context_pressure_detected',
+    `pre-compact hook: ${trigger}`,
+    timestamp,
+  );
+  const nextState = writeContextHandoffForState(
+    repoRoot,
+    pressureState,
+    `pre-compact hook: ${trigger}`,
+    timestamp,
+  );
 
   writeSnapshotForState(repoRoot, nextState, timestamp);
 }
 
 function recordCompaction(repoRoot, trigger) {
   const timestamp = nowIso();
-  const nextState = transitionState(repoRoot, {
-    mode: 'context_handoff',
-  }, 'compaction_recorded', `post-compact hook: ${trigger}; prefer .agent durable state`, timestamp);
+  const nextState = transitionState(
+    repoRoot,
+    {
+      mode: 'context_handoff',
+    },
+    'compaction_recorded',
+    `post-compact hook: ${trigger}; prefer .agent durable state`,
+    timestamp,
+  );
 
   writeSnapshotForState(repoRoot, nextState, timestamp);
 }
@@ -203,13 +227,16 @@ function loadAgentState(repoRoot) {
 
 function writeSnapshotForState(repoRoot, state, timestamp) {
   const git = readGitSnapshot(repoRoot);
-  writeTextFile(agentPath(repoRoot, SNAPSHOT_FILE), formatSnapshot({
-    timestamp,
-    branch: git.branch,
-    gitStatus: git.status,
-    gitDiffStat: git.diffStat,
-    state,
-  }));
+  writeTextFile(
+    agentPath(repoRoot, SNAPSHOT_FILE),
+    formatSnapshot({
+      timestamp,
+      branch: git.branch,
+      gitStatus: git.status,
+      gitDiffStat: git.diffStat,
+      state,
+    }),
+  );
 }
 
 function readGitSnapshot(repoRoot) {
@@ -231,15 +258,18 @@ function writeContextHandoffForState(repoRoot, state, trigger, timestamp) {
 
   saveState(repoRoot, nextState);
   appendEvent(repoRoot, nextState, 'handoff_written', trigger, timestamp);
-  writeTextFile(agentPath(repoRoot, HANDOFF_FILE), formatContextHandoff({
-    state: nextState,
-    timestamp,
-    trigger,
-    branch: git.branch,
-    gitStatus: git.status,
-    gitDiffStat: git.diffStat,
-    nextAction,
-  }));
+  writeTextFile(
+    agentPath(repoRoot, HANDOFF_FILE),
+    formatContextHandoff({
+      state: nextState,
+      timestamp,
+      trigger,
+      branch: git.branch,
+      gitStatus: git.status,
+      gitDiffStat: git.diffStat,
+      nextAction,
+    }),
+  );
 
   return nextState;
 }

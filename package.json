@@ -1,9 +1,26 @@
 {
   "name": "continuation-layer",
-  "version": "0.0.0",
-  "description": "Continuity guard for CLI coding agents.",
+  "version": "0.1.0",
+  "description": "Durable continuation layer for Codex long-running CLI coding-agent tasks.",
   "license": "Apache-2.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Fnatatzeng/continuation-layer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Fnatatzeng/continuation-layer/issues"
+  },
+  "homepage": "https://github.com/Fnatatzeng/continuation-layer#readme",
+  "keywords": [
+    "codex",
+    "coding-agent",
+    "cli",
+    "agent-continuity",
+    "durable-state",
+    "handoff",
+    "automation"
+  ],
   "files": [
     "bin/",
     "src/",
@@ -11,18 +28,22 @@
     "docs/",
     "README.md",
     "README.zh-TW.md",
-    "LICENSE",
-    "FINDINGS.md",
-    "PLAN.md"
+    "LICENSE"
   ],
   "bin": {
     "continuity": "./bin/continuity.mjs"
   },
   "scripts": {
-    "check": "node --check bin/continuity.mjs && node --check plugins/codex-continuity/hooks/codex-continuity-hook.mjs",
+    "check": "node --check bin/continuity.mjs && find src tests plugins -name '*.mjs' -print0 | xargs -0 -n1 node --check",
+    "format": "prettier --write \"**/*.{js,mjs,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{js,mjs,json,md,yml,yaml}\"",
+    "pack:check": "npm pack --dry-run",
     "test": "node --test tests/*.test.mjs"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.4"
   }
 }

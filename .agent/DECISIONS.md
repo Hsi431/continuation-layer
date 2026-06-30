@@ -38,4 +38,3 @@ Related files:
 - `plugins/codex-continuity/`
 
 Consequence: Cooldown waiting belongs to the supervisor.
-

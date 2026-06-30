@@ -23,14 +23,26 @@ export const codexAdapter = Object.freeze({
 
   resumeSessionCommand({ repoRoot, sessionId = null, prompt = '', nonInteractive = true }) {
     if (nonInteractive) {
-      return commandSpec('codex', compactArgs(['exec', '-C', repoRoot, 'resume', sessionId ?? '--last', prompt]), repoRoot);
+      return commandSpec(
+        'codex',
+        compactArgs(['exec', '-C', repoRoot, 'resume', sessionId ?? '--last', prompt]),
+        repoRoot,
+      );
     }
 
-    return commandSpec('codex', compactArgs(['resume', '-C', repoRoot, sessionId ?? '--last', prompt]), repoRoot);
+    return commandSpec(
+      'codex',
+      compactArgs(['resume', '-C', repoRoot, sessionId ?? '--last', prompt]),
+      repoRoot,
+    );
   },
 
   startContinuationSessionCommand({ repoRoot, sessionId = null, prompt = '' }) {
-    return commandSpec('codex', compactArgs(['fork', '-C', repoRoot, sessionId ?? '--last', prompt]), repoRoot);
+    return commandSpec(
+      'codex',
+      compactArgs(['fork', '-C', repoRoot, sessionId ?? '--last', prompt]),
+      repoRoot,
+    );
   },
 
   detectCooldownError(text) {
@@ -62,7 +74,9 @@ export const codexAdapter = Object.freeze({
       `First read ${state.current_handoff_path}, .agent/NEXT.md, .agent/DECISIONS.md, git status, and git diff.`,
       snapshotPath ? `Also inspect ${snapshotPath}.` : null,
       'Do not redo completed work. Continue from the recorded next exact step.',
-    ].filter(Boolean).join(' ');
+    ]
+      .filter(Boolean)
+      .join(' ');
   },
 
   makeContinuationPrompt({ state }) {
@@ -152,7 +166,8 @@ function parseRelativeReset(source) {
 function durationToSeconds(text) {
   let total = 0;
   let found = false;
-  const unitPattern = /(\d+)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes|s|sec|secs|second|seconds)\b/gi;
+  const unitPattern =
+    /(\d+)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes|s|sec|secs|second|seconds)\b/gi;
   for (const match of text.matchAll(unitPattern)) {
     found = true;
     const value = Number(match[1]);
@@ -171,7 +186,9 @@ function durationToSeconds(text) {
 
 function extractSessionId(text) {
   const source = String(text ?? '');
-  const jsonMatch = source.match(/"session_?id"\s*:\s*"([^"]+)"/i) ?? source.match(/"conversation_?id"\s*:\s*"([^"]+)"/i);
+  const jsonMatch =
+    source.match(/"session_?id"\s*:\s*"([^"]+)"/i) ??
+    source.match(/"conversation_?id"\s*:\s*"([^"]+)"/i);
   if (jsonMatch) {
     return jsonMatch[1];
   }

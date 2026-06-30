@@ -5,14 +5,16 @@ import { join } from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {
-  buildContinuityContext,
-  initAgent,
-  recordCompaction,
-} from '../src/core/agent-state.mjs';
+import { buildContinuityContext, initAgent, recordCompaction } from '../src/core/agent-state.mjs';
 import { runHookCli } from '../plugins/codex-continuity/hooks/codex-continuity-hook.mjs';
 
-const HOOK_SCRIPT = join(process.cwd(), 'plugins', 'codex-continuity', 'hooks', 'codex-continuity-hook.mjs');
+const HOOK_SCRIPT = join(
+  process.cwd(),
+  'plugins',
+  'codex-continuity',
+  'hooks',
+  'codex-continuity-hook.mjs',
+);
 
 function makeRepo() {
   const dir = mkdtempSync(join(tmpdir(), 'continuity-hooks-'));
@@ -44,14 +46,19 @@ test('context pressure records handoff mode without provider cooldown logic', ()
   const output = JSON.parse(stdout);
 
   const state = readJson(join(repo, '.agent', 'state.json'));
-  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8').trim().split('\n');
+  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8')
+    .trim()
+    .split('\n');
   assert.match(output.systemMessage, /continuity handoff requested/);
   assert.equal(state.status, 'waiting_for_user');
   assert.equal(state.mode, 'context_handoff');
   assert.equal(state.last_event, 'handoff_written');
   assert.equal(JSON.parse(sessions.at(-2)).event, 'context_pressure_detected');
   assert.equal(JSON.parse(sessions.at(-1)).event, 'handoff_written');
-  assert.match(readFileSync(join(repo, '.agent', 'HANDOFF.md'), 'utf8'), /Context handoff written before continuation/);
+  assert.match(
+    readFileSync(join(repo, '.agent', 'HANDOFF.md'), 'utf8'),
+    /Context handoff written before continuation/,
+  );
   assert.match(readFileSync(join(repo, '.agent', 'AUTO_SNAPSHOT.md'), 'utf8'), /handoff_written/);
 });
 
@@ -61,7 +68,9 @@ test('post compact records compaction and keeps durable state preferred', () => 
   recordCompaction({ cwd: repo, trigger: 'manual' });
 
   const state = readJson(join(repo, '.agent', 'state.json'));
-  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8').trim().split('\n');
+  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8')
+    .trim()
+    .split('\n');
   assert.equal(state.mode, 'context_handoff');
   assert.equal(state.last_event, 'compaction_recorded');
   assert.match(JSON.parse(sessions.at(-1)).reason, /prefer \.agent durable state/);

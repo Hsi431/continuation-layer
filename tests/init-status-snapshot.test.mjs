@@ -1,5 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -55,10 +63,7 @@ test('init refuses partial .agent state', () => {
   mkdirSync(join(repo, '.agent'));
   writeFileSync(join(repo, '.agent', 'config.json'), '{}\n');
 
-  assert.throws(
-    () => initAgent({ cwd: repo, taskId: 'task-partial' }),
-    /partial .*\.agent/,
-  );
+  assert.throws(() => initAgent({ cwd: repo, taskId: 'task-partial' }), /partial .*\.agent/);
 });
 
 test('init refuses existing config/state when required handoff files are missing', () => {
@@ -66,10 +71,7 @@ test('init refuses existing config/state when required handoff files are missing
   initAgent({ cwd: repo, taskId: 'task-incomplete-existing' });
   unlinkSync(join(repo, '.agent', 'HANDOFF.md'));
 
-  assert.throws(
-    () => initAgent({ cwd: repo, taskId: 'task-new' }),
-    /Incomplete \.agent state/,
-  );
+  assert.throws(() => initAgent({ cwd: repo, taskId: 'task-new' }), /Incomplete \.agent state/);
 });
 
 test('status rejects config and state drift', () => {
@@ -84,10 +86,7 @@ test('status rejects config and state drift', () => {
     ['auto_continue_after_handoff', true],
   ]) {
     writeJson(configPath, { ...config, [key]: value });
-    assert.throws(
-      () => statusAgent({ cwd: repo }),
-      new RegExp(`Config/state mismatch: ${key}`),
-    );
+    assert.throws(() => statusAgent({ cwd: repo }), new RegExp(`Config/state mismatch: ${key}`));
   }
 });
 
@@ -113,10 +112,7 @@ test('snapshot rejects config and state drift', () => {
 test('init refuses non-git directories', () => {
   const dir = mkdtempSync(join(tmpdir(), 'continuity-layer-no-git-'));
 
-  assert.throws(
-    () => initAgent({ cwd: dir, taskId: 'task-no-git' }),
-    /git repository/,
-  );
+  assert.throws(() => initAgent({ cwd: dir, taskId: 'task-no-git' }), /git repository/);
 });
 
 test('status reads next action and core state', () => {
@@ -160,7 +156,9 @@ test('overnight mode is off by default and can be toggled with config/state sync
   });
   const disabledState = readJson(join(repo, '.agent', 'state.json'));
   const disabledConfig = readJson(join(repo, '.agent', 'config.json'));
-  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8').trim().split('\n');
+  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8')
+    .trim()
+    .split('\n');
 
   assert.equal(disabledConfig.overnight_mode, false);
   assert.equal(disabledConfig.auto_continue_after_handoff, false);
@@ -179,7 +177,9 @@ test('mechanical snapshot records git state and updates checkpoint event', () =>
   const result = writeMechanicalSnapshot({ cwd: repo, reason: 'test snapshot' });
   const snapshot = readFileSync(result.snapshotPath, 'utf8');
   const state = readJson(join(repo, '.agent', 'state.json'));
-  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8').trim().split('\n');
+  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8')
+    .trim()
+    .split('\n');
 
   assert.match(snapshot, /work\.txt/);
   assert.equal(state.last_event, 'checkpoint_written');
@@ -201,7 +201,10 @@ test('complete marks task complete and archives active handoff and snapshot', ()
   });
   const state = readJson(join(repo, '.agent', 'state.json'));
   const config = readJson(join(repo, '.agent', 'config.json'));
-  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map(JSON.parse);
 
   assert.equal(result.state.status, 'completed');
   assert.equal(state.status, 'completed');
@@ -234,7 +237,10 @@ test('new task archives old handoff and resets active state without stale pollut
   const config = readJson(join(repo, '.agent', 'config.json'));
   const activeHandoff = readFileSync(join(repo, '.agent', 'HANDOFF.md'), 'utf8');
   const activeNext = readFileSync(join(repo, '.agent', 'NEXT.md'), 'utf8');
-  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map(JSON.parse);
 
   assert.equal(result.state.task_id, 'task-new');
   assert.equal(state.task_id, 'task-new');

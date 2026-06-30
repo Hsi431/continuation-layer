@@ -29,11 +29,14 @@ test('process runner captures stdout, stderr, exit code, and logs', async () => 
   const repo = makeRepo();
   const logPath = join(repo, '.agent', 'logs', 'runner.log');
 
-  const result = await runCommand({
-    command: '/bin/sh',
-    args: ['-c', 'echo out; echo err >&2; exit 3'],
-    cwd: repo,
-  }, { logPath });
+  const result = await runCommand(
+    {
+      command: '/bin/sh',
+      args: ['-c', 'echo out; echo err >&2; exit 3'],
+      cwd: repo,
+    },
+    { logPath },
+  );
 
   assert.equal(result.exitCode, 3);
   assert.equal(result.stdout.trim(), 'out');
@@ -308,7 +311,10 @@ test('overnight mode auto-starts continuation after handoff and traces session c
     },
   });
   const state = readJson(join(repo, '.agent', 'state.json'));
-  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map(JSON.parse);
 
   assert.deepEqual(commandSpec.args.slice(0, 4), ['fork', '-C', repo, 'sess-parent']);
   assert.equal(result.confirmationRequired, false);

@@ -1,11 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {
-  codexAdapter,
-  nextResumeAt,
-  parseResetTime,
-} from '../src/providers/codex.mjs';
+import { codexAdapter, nextResumeAt, parseResetTime } from '../src/providers/codex.mjs';
 
 test('codex adapter builds start, resume, and fork commands', () => {
   assert.deepEqual(
@@ -19,7 +15,11 @@ test('codex adapter builds start, resume, and fork commands', () => {
   );
 
   assert.deepEqual(
-    codexAdapter.startContinuationSessionCommand({ repoRoot: '/repo', sessionId: 'abc', prompt: 'continue' }),
+    codexAdapter.startContinuationSessionCommand({
+      repoRoot: '/repo',
+      sessionId: 'abc',
+      prompt: 'continue',
+    }),
     { command: 'codex', args: ['fork', '-C', '/repo', 'abc', 'continue'], cwd: '/repo' },
   );
 });

@@ -1,11 +1,7 @@
 import { copyFileSync, existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
-import {
-  DEFAULT_CONFIG,
-  HANDOFF_FILE,
-  SNAPSHOT_FILE,
-} from './constants.mjs';
+import { DEFAULT_CONFIG, HANDOFF_FILE, SNAPSHOT_FILE } from './constants.mjs';
 import {
   appendJsonLine,
   ensureAgentDirectories,
@@ -356,10 +352,16 @@ export function buildContinuityContext({ cwd = process.cwd(), source = 'session 
 export function recordContextPressure({ cwd = process.cwd(), trigger = 'unknown' } = {}) {
   const repoRoot = resolveRepoRoot(cwd);
   const timestamp = nowIso();
-  const pressureState = transitionState(repoRoot, {
-    status: 'waiting_for_user',
-    mode: 'context_handoff',
-  }, 'context_pressure_detected', `pre-compact hook: ${trigger}`, timestamp);
+  const pressureState = transitionState(
+    repoRoot,
+    {
+      status: 'waiting_for_user',
+      mode: 'context_handoff',
+    },
+    'context_pressure_detected',
+    `pre-compact hook: ${trigger}`,
+    timestamp,
+  );
   const state = writeContextHandoffForState({
     repoRoot,
     state: pressureState,
@@ -400,9 +402,15 @@ export function writeContextHandoff({
 export function recordCompaction({ cwd = process.cwd(), trigger = 'unknown' } = {}) {
   const repoRoot = resolveRepoRoot(cwd);
   const timestamp = nowIso();
-  const state = transitionState(repoRoot, {
-    mode: 'context_handoff',
-  }, 'compaction_recorded', `post-compact hook: ${trigger}; prefer .agent durable state`, timestamp);
+  const state = transitionState(
+    repoRoot,
+    {
+      mode: 'context_handoff',
+    },
+    'compaction_recorded',
+    `post-compact hook: ${trigger}; prefer .agent durable state`,
+    timestamp,
+  );
 
   writeSnapshotForState(repoRoot, state, timestamp);
   return { repoRoot, state };
@@ -452,15 +460,18 @@ function writeContextHandoffForState({ repoRoot, state, trigger, timestamp }) {
 
   saveState(repoRoot, nextState);
   appendEvent(repoRoot, nextState, 'handoff_written', trigger, timestamp);
-  writeTextFile(paths(repoRoot).handoff, formatContextHandoff({
-    state: nextState,
-    timestamp,
-    trigger,
-    branch: git.branch,
-    gitStatus: git.status,
-    gitDiffStat: git.diffStat,
-    nextAction,
-  }));
+  writeTextFile(
+    paths(repoRoot).handoff,
+    formatContextHandoff({
+      state: nextState,
+      timestamp,
+      trigger,
+      branch: git.branch,
+      gitStatus: git.status,
+      gitDiffStat: git.diffStat,
+      nextAction,
+    }),
+  );
 
   return nextState;
 }
@@ -487,10 +498,11 @@ function archiveCurrentTaskFiles(repoRoot, taskId, timestamp) {
 }
 
 function safeFilePart(value) {
-  return String(value)
-    .replace(/[^a-zA-Z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    || 'unknown';
+  return (
+    String(value)
+      .replace(/[^a-zA-Z0-9._-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'unknown'
+  );
 }
 
 function readNextAction(path) {
@@ -504,9 +516,9 @@ function readNextAction(path) {
 }
 
 function missingRequiredAgentFiles(filePaths) {
-  return REQUIRED_AGENT_FILE_KEYS
-    .filter((key) => !existsSync(filePaths[key]))
-    .map((key) => filePaths[key]);
+  return REQUIRED_AGENT_FILE_KEYS.filter((key) => !existsSync(filePaths[key])).map(
+    (key) => filePaths[key],
+  );
 }
 
 function assertConfigStateMatch(config, state) {

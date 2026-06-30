@@ -1,0 +1,8 @@
+node_modules/
+coverage/
+dist/
+.git/
+.agent/logs/
+.agent/handoffs/
+.agent/snapshots/
+.agent/sessions.jsonl

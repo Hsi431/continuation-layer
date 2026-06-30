@@ -36,7 +36,7 @@ Update `.agent/NEXT.md` when the next action changes. Update `.agent/DECISIONS.m
 If the project has a continuity CLI, prefer its snapshot command for mechanical state:
 
 ```sh
-node bin/continuity.mjs snapshot
+continuity snapshot
 ```
 
 Do not claim a checkpoint or test result unless the file was written or the command was run.
@@ -59,13 +59,13 @@ Do not try to bypass provider compaction. Prefer durable handoff files before an
 Overnight auto-continuation is allowed only after explicit enablement:
 
 ```sh
-node bin/continuity.mjs overnight enable
+continuity overnight enable
 ```
 
 Before any automatic continuation, verify that `.agent/HANDOFF.md` is complete, `.agent/NEXT.md` has a next action, a parent session id is known, git recovery checks pass, and the provider command will use the child-continuation path. Disable unattended continuation with:
 
 ```sh
-node bin/continuity.mjs overnight disable
+continuity overnight disable
 ```
 
 ## Cooldown Recovery

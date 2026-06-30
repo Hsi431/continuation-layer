@@ -38,7 +38,6 @@ Automatic continuation is allowed only when:
 - Recovery check passes.
 - Parent session id is known.
 - Git state has no conflicts.
-- Recorded test state matches the handoff.
 
 `continuity overnight enable` turns on both `overnight_mode` and `auto_continue_after_handoff`. `continuity overnight disable` turns both off.
 

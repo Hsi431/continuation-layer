@@ -1,8 +1,8 @@
 # Codex Continuity Plugin
 
-Codex plugin package for the Continuation Layer v0 skill and lifecycle hooks.
+Codex plugin package for the Continuation Layer v0.1 skill and lifecycle hooks.
 
-Phase 3 added the continuity skill. Phase 4 added short command hooks for session start, stop, and compaction lifecycle events. Phase 5 added context handoff and user-confirmed child continuation through the supervisor. Phase 6 adds explicit overnight auto-continuation gates.
+The plugin contains the continuity skill, short lifecycle hooks, context handoff support, guarded overnight behavior, and cleanup guidance for completed tasks.
 
 Current contents:
 
@@ -31,5 +31,6 @@ Continuation behavior:
 - The child prompt tells Codex to read `.agent/HANDOFF.md`, `.agent/NEXT.md`, `.agent/DECISIONS.md`, `git status --short`, and `git diff --no-color`.
 - Failed recovery checks stop continuation before Codex is launched.
 - Overnight auto-continuation requires `continuity overnight enable`, a known parent session id, a complete handoff, and a passing recovery check.
+- Completion cleanup archives active handoff/snapshot state before a fresh task starts.
 
 Cooldown and API failure handling remain in the supervisor. Hooks do not perform long sleeps.

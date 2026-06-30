@@ -1,7 +1,7 @@
 {
   "task_id": "continuation-layer-v0",
   "provider": "codex",
-  "repo_path": "/home/fnata_claw/continuation-layer",
+  "repo_path": ".",
   "status": "checkpointed",
   "mode": "normal",
   "current_session_id": null,

@@ -24,12 +24,22 @@ export async function startManagedSession({
   const providerAdapter = adapter ?? getProviderAdapter(config.provider);
   const timestamp = now.toISOString();
 
-  const runningState = transitionState(repoRoot, {
-    status: 'running',
-    mode: 'normal',
-  }, 'session_started', 'supervisor start', timestamp);
+  const runningState = transitionState(
+    repoRoot,
+    {
+      status: 'running',
+      mode: 'normal',
+    },
+    'session_started',
+    'supervisor start',
+    timestamp,
+  );
 
-  const commandSpec = providerAdapter.startSessionCommand({ repoRoot, prompt, nonInteractive: true });
+  const commandSpec = providerAdapter.startSessionCommand({
+    repoRoot,
+    prompt,
+    nonInteractive: true,
+  });
   const result = await runProviderCommand({
     runner,
     commandSpec,
@@ -74,7 +84,10 @@ export async function resumeManagedSession({
     };
   }
 
-  const prompt = providerAdapter.makeResumePrompt({ state, snapshotPath: state.last_snapshot_path });
+  const prompt = providerAdapter.makeResumePrompt({
+    state,
+    snapshotPath: state.last_snapshot_path,
+  });
   const commandSpec = providerAdapter.resumeSessionCommand({
     repoRoot,
     sessionId: state.current_session_id,
@@ -143,11 +156,17 @@ export async function continueManagedSession({
   const recovery = recoveryCheck({ repoRoot, config, now });
   if (!recovery.ok) {
     const reason = `recovery check failed: ${recovery.failures.join('; ')}`;
-    const failedState = transitionState(repoRoot, {
-      status: 'failed',
-      mode: 'context_handoff',
-      cooldown_reason: reason,
-    }, 'continuation_aborted', reason, now.toISOString());
+    const failedState = transitionState(
+      repoRoot,
+      {
+        status: 'failed',
+        mode: 'context_handoff',
+        cooldown_reason: reason,
+      },
+      'continuation_aborted',
+      reason,
+      now.toISOString(),
+    );
     writeSnapshotForState(repoRoot, failedState, now.toISOString());
 
     return {
@@ -164,11 +183,17 @@ export async function continueManagedSession({
   const parentSessionId = state.current_session_id;
   if (autoContinued && !parentSessionId) {
     const reason = 'recovery check failed: missing parent session id for overnight continuation';
-    const failedState = transitionState(repoRoot, {
-      status: 'failed',
-      mode: 'overnight',
-      cooldown_reason: reason,
-    }, 'continuation_aborted', reason, now.toISOString());
+    const failedState = transitionState(
+      repoRoot,
+      {
+        status: 'failed',
+        mode: 'overnight',
+        cooldown_reason: reason,
+      },
+      'continuation_aborted',
+      reason,
+      now.toISOString(),
+    );
     writeSnapshotForState(repoRoot, failedState, now.toISOString());
 
     return {
@@ -188,17 +213,27 @@ export async function continueManagedSession({
   const continuationPrompt = [
     providerAdapter.makeContinuationPrompt({ state }),
     prompt ? `User continuation prompt: ${prompt}` : null,
-  ].filter(Boolean).join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
   const commandSpec = providerAdapter.startContinuationSessionCommand({
     repoRoot,
     sessionId: parentSessionId,
     prompt: continuationPrompt,
   });
-  const continuingState = transitionState(repoRoot, {
-    status: 'continuing',
-    mode: autoContinued ? 'overnight' : 'context_handoff',
-    parent_session_id: parentSessionId,
-  }, 'continuation_started', autoContinued ? 'overnight child continuation session started' : 'child continuation session started', now.toISOString());
+  const continuingState = transitionState(
+    repoRoot,
+    {
+      status: 'continuing',
+      mode: autoContinued ? 'overnight' : 'context_handoff',
+      parent_session_id: parentSessionId,
+    },
+    'continuation_started',
+    autoContinued
+      ? 'overnight child continuation session started'
+      : 'child continuation session started',
+    now.toISOString(),
+  );
 
   const result = await runProviderCommand({
     runner,
@@ -234,7 +269,15 @@ export function makeLogPath(repoRoot, kind, timestamp = new Date().toISOString()
   return join(paths(repoRoot).logsDir, `${safe}-${kind}.log`);
 }
 
-async function runProviderCommand({ runner, commandSpec, logPath, repoRoot, state, failureReason, now }) {
+async function runProviderCommand({
+  runner,
+  commandSpec,
+  logPath,
+  repoRoot,
+  state,
+  failureReason,
+  now,
+}) {
   try {
     return await runner(commandSpec, { logPath });
   } catch (error) {
@@ -273,13 +316,19 @@ async function handleProviderResult({
       defaultSeconds: config.cooldown_default_seconds,
       bufferSeconds: config.cooldown_buffer_seconds,
     }).toISOString();
-    const nextState = transitionState(repoRoot, {
-      status: 'cooling_down',
-      mode: 'cooldown_resume',
-      current_session_id: sessionId,
-      next_resume_at: nextAt,
-      cooldown_reason: cooldown.reason,
-    }, 'cooldown_detected', cooldown.reason ?? 'cooldown detected', now.toISOString());
+    const nextState = transitionState(
+      repoRoot,
+      {
+        status: 'cooling_down',
+        mode: 'cooldown_resume',
+        current_session_id: sessionId,
+        next_resume_at: nextAt,
+        cooldown_reason: cooldown.reason,
+      },
+      'cooldown_detected',
+      cooldown.reason ?? 'cooldown detected',
+      now.toISOString(),
+    );
     writeSnapshotForState(repoRoot, nextState, now.toISOString());
 
     return {
@@ -291,13 +340,19 @@ async function handleProviderResult({
   }
 
   if (result.exitCode === 0) {
-    const nextState = transitionState(repoRoot, {
-      status: 'checkpointed',
-      mode: 'normal',
-      current_session_id: sessionId,
-      next_resume_at: null,
-      cooldown_reason: null,
-    }, successEvent, successReason, now.toISOString());
+    const nextState = transitionState(
+      repoRoot,
+      {
+        status: 'checkpointed',
+        mode: 'normal',
+        current_session_id: sessionId,
+        next_resume_at: null,
+        cooldown_reason: null,
+      },
+      successEvent,
+      successReason,
+      now.toISOString(),
+    );
 
     return {
       status: 'checkpointed',
@@ -306,12 +361,18 @@ async function handleProviderResult({
     };
   }
 
-  const nextState = transitionState(repoRoot, {
-    status: 'failed',
-    mode: 'normal',
-    current_session_id: sessionId,
-    cooldown_reason: result.stderr || failureReason,
-  }, 'task_failed', failureReason, now.toISOString());
+  const nextState = transitionState(
+    repoRoot,
+    {
+      status: 'failed',
+      mode: 'normal',
+      current_session_id: sessionId,
+      cooldown_reason: result.stderr || failureReason,
+    },
+    'task_failed',
+    failureReason,
+    now.toISOString(),
+  );
   writeSnapshotForState(repoRoot, nextState, now.toISOString());
 
   return {

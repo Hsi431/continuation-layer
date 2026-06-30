@@ -24,6 +24,54 @@ Continuation Layer 把任務狀態寫進 repo 裡，讓 agent 可以停下來、
 它靠的是 repo 裡可檢查、可追蹤、可恢復的 durable state。
 ```
 
+## Problem / Before-After
+
+| Before                              | After                                             |
+| ----------------------------------- | ------------------------------------------------- |
+| Cooldown wall 讓任務停在一半        | Supervisor 記錄 cooldown state 和合法 resume 時間 |
+| Context compaction 可能壓掉關鍵決策 | Continuation 前先寫 handoff                       |
+| Resume 看似接上但任務意圖失準       | 接續前先讀 `.agent` durable state                 |
+| 新 session 重掃 repo、浪費額度      | Child session 從 handoff、git status、diff 恢復   |
+| 過夜任務需要人盯                    | Overnight mode 明確開啟，並有 recovery gates      |
+
+## Highlights
+
+- Codex-first v0.1 preview。
+- Cooldown 後保留同一個 Codex session 的 resume state。
+- Context 快滿時先 handoff，再 continuation。
+- Child continuation 使用 `codex fork`。
+- `.agent` durable state 是任務真實來源。
+- Session chain 可追蹤。
+- Overnight mode 預設關閉，必須明確打開。
+- Recovery check 失敗會停下來，不會硬做。
+- Supervisor 負責 cooldown 偵測與 resume state。
+- Hooks 只做短生命週期工作，不 sleep 五小時。
+- Task completion / archive / cleanup 已完成。
+- 不切帳號。
+- 不繞 provider limit。
+- 不自動 commit。
+
+## 安全邊界
+
+Continuation Layer 不是 provider-limit bypass 工具。
+
+它不會：
+
+- 自動切帳號。
+- 偽造 reset window。
+- 在 hook 裡 sleep 五小時。
+- 自動 commit。
+- 自動開 PR。
+- 從不完整 handoff 強行續做。
+- 把 provider 私有 session storage 當核心狀態。
+- 把 compacted summary 當唯一事實來源。
+
+它只做一件事：
+
+```text
+讓長任務可以合法暫停，明確交接，安全恢復。
+```
+
 ## 一張圖看懂
 
 ```mermaid
@@ -114,7 +162,7 @@ recover from .agent + git state
 但如果你要睡覺、出門、長時間不在，可以打開 overnight mode：
 
 ```sh
-node bin/continuity.mjs overnight enable
+continuity overnight enable
 ```
 
 打開後，context handoff 完成時，它可以自動開 child session 繼續跑。
@@ -133,18 +181,18 @@ node bin/continuity.mjs overnight enable
 
 ### 4. 收尾時，舊任務不污染新任務
 
-Phase 7 已補上 cleanup lifecycle。
+v0.1 已補上 cleanup lifecycle。
 
 你可以把任務標記完成：
 
 ```sh
-node bin/continuity.mjs complete
+continuity complete
 ```
 
 也可以開始乾淨的新任務：
 
 ```sh
-node bin/continuity.mjs new-task --task-id next-task
+continuity new-task --task-id next-task
 ```
 
 系統會先把舊的 active handoff / snapshot archive 起來，再寫新的 active state。新任務不會沿用上一個任務的 handoff。
@@ -168,25 +216,59 @@ Continuation Layer 會在你的 repo 裡建立 `.agent/`：
 
 這些檔案讓 agent 的任務狀態變成可讀、可查、可恢復。
 
-## 實際使用流程
+## 安裝
+
+需求：
+
+- Node.js 20 或更新版本。
+- Git。
+- 已安裝並登入 Codex CLI。
+- 一個可以寫入 `.agent/` durable state 的 git repo。
+
+Clone 並安裝：
+
+```sh
+git clone https://github.com/Fnatatzeng/continuation-layer.git
+cd continuation-layer
+npm install
+```
+
+從 source tree 使用：
+
+```sh
+node bin/continuity.mjs status
+```
+
+或 link 成本機 CLI：
+
+```sh
+npm link
+continuity status
+```
+
+Codex plugin package 放在 `plugins/codex-continuity/`。Dogfood 時請透過你的 Codex plugin workflow 安裝或 link 這個 plugin，然後開新的 Codex thread，讓 hooks 和 skill 被載入。若尚未安裝 plugin，CLI 和 supervisor 仍可從 source tree 使用。
+
+## Quick Start
+
+在你要保護的 repo 裡：
 
 初始化：
 
 ```sh
-node bin/continuity.mjs init --task-id refactor-auth
+continuity init --task-id refactor-auth
 ```
 
 查看狀態：
 
 ```sh
-node bin/continuity.mjs status
-node bin/continuity.mjs status --json
+continuity status
+continuity status --json
 ```
 
 用 supervisor 啟動 Codex：
 
 ```sh
-node bin/continuity.mjs start "refactor the auth module safely"
+continuity start "refactor the auth module safely"
 ```
 
 如果 Codex 撞到 cooldown，supervisor 會記錄狀態和合法 resume 時間；reset 後呼叫 resume 時會接回同一個 session。
@@ -194,14 +276,14 @@ node bin/continuity.mjs start "refactor the auth module safely"
 寫 snapshot：
 
 ```sh
-node bin/continuity.mjs snapshot
+continuity snapshot
 ```
 
 Context handoff 後開 child session：
 
 ```sh
-node bin/continuity.mjs continue
-node bin/continuity.mjs continue --yes
+continuity continue
+continuity continue --yes
 ```
 
 `continue` 會寫 handoff，然後停下來確認。`continue --yes` 會跑 recovery checks，通過後用 `codex fork` 開 child session。
@@ -209,39 +291,30 @@ node bin/continuity.mjs continue --yes
 過夜模式：
 
 ```sh
-node bin/continuity.mjs overnight enable
-node bin/continuity.mjs continue
+continuity overnight enable
+continuity continue
 ```
 
 關掉：
 
 ```sh
-node bin/continuity.mjs overnight disable
+continuity overnight disable
 ```
 
 任務完成與新任務：
 
 ```sh
-node bin/continuity.mjs complete
-node bin/continuity.mjs new-task --task-id next-task
+continuity complete
+continuity new-task --task-id next-task
 ```
 
-## Highlights
+只看 provider command，不真的啟動 Codex：
 
-- Codex-first v0。
-- Cooldown 後保留同一個 Codex session 的 resume state。
-- Context 快滿時先 handoff，再 continuation。
-- Child continuation 使用 `codex fork`。
-- `.agent` durable state 是任務真實來源。
-- Session chain 可追蹤。
-- Overnight mode 預設關閉，必須明確打開。
-- Recovery check 失敗會停下來，不會硬做。
-- Supervisor 負責 cooldown 偵測與 resume state。
-- Hooks 只做短生命週期工作，不 sleep 五小時。
-- Task completion / archive / cleanup 已完成。
-- 不切帳號。
-- 不繞 provider limit。
-- 不自動 commit。
+```sh
+continuity start --dry-run "refactor the auth module safely"
+continuity resume --dry-run
+continuity continue --dry-run
+```
 
 ## Codex Integration
 
@@ -260,33 +333,12 @@ plugins/codex-continuity/
 
 Hook 行為：
 
-| Hook | 行為 |
-| --- | --- |
-| `SessionStart` | 注入 compact continuity context |
-| `Stop` | 寫入 `.agent/AUTO_SNAPSHOT.md` |
-| `PreCompact` | 記錄 context pressure，寫 handoff |
-| `PostCompact` | 記錄 compaction 發生，提醒後續優先信任 `.agent` state |
-
-## 安全邊界
-
-Continuation Layer 不是 provider-limit bypass 工具。
-
-它不會：
-
-- 自動切帳號。
-- 偽造 reset window。
-- 在 hook 裡 sleep 五小時。
-- 自動 commit。
-- 自動開 PR。
-- 從不完整 handoff 強行續做。
-- 把 provider 私有 session storage 當核心狀態。
-- 把 compacted summary 當唯一事實來源。
-
-它只做一件事：
-
-```text
-讓長任務可以合法暫停，明確交接，安全恢復。
-```
+| Hook           | 行為                                                  |
+| -------------- | ----------------------------------------------------- |
+| `SessionStart` | 注入 compact continuity context                       |
+| `Stop`         | 寫入 `.agent/AUTO_SNAPSHOT.md`                        |
+| `PreCompact`   | 記錄 context pressure，寫 handoff                     |
+| `PostCompact`  | 記錄 compaction 發生，提醒後續優先信任 `.agent` state |
 
 ## 現在狀態
 
@@ -304,9 +356,18 @@ Continuation Layer 不是 provider-limit bypass 工具。
 - Guarded overnight auto-continuation
 - Completion / archive / cleanup
 
+## Known Limitations
+
+- v0.1 是 Codex-first。
+- Claude Code 目前是 v1/future provider path，還不是 first-class runtime。
+- Provider CLI 行為和私有 session storage 可能變動；私有 session storage 只作診斷，不是核心狀態。
+- 目前主要透過本機 unit/integration tests 和 dogfood flow 驗證。
+- Context continuation 預設需要 user confirmation，除非明確啟用 overnight mode。
+- 真 provider smoke tests 應保持 opt-in，不放進 CI。
+
 ## Roadmap
 
-### v0
+### v0.1
 
 - Codex CLI as the primary provider.
 - Safe cooldown resume state.
@@ -314,6 +375,13 @@ Continuation Layer 不是 provider-limit bypass 工具。
 - Guarded overnight mode.
 - Completion / archive / cleanup.
 - Release polish and packaging.
+
+### v0.x
+
+- Dogfood feedback.
+- Packaging polish.
+- Clearer plugin installation flow.
+- Optional provider smoke tests.
 
 ### v1
 
@@ -335,8 +403,6 @@ plugins/codex-continuity/       Codex plugin package
 plugins/claude-code-adapter/    future Claude Code adapter notes
 src/                            core runtime, providers, supervisor
 tests/                          unit and integration tests
-FINDINGS.md                     Phase 0 findings
-PLAN.md                         implementation plan
 ```
 
 ## Development
@@ -353,12 +419,21 @@ Run syntax checks:
 npm run check
 ```
 
-Validate Codex skill and plugin:
+Run formatting checks:
 
 ```sh
-python3 /home/fnata_claw/.codex/skills/.system/skill-creator/scripts/quick_validate.py plugins/codex-continuity/skills/continuity
-python3 /home/fnata_claw/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/codex-continuity
+npm run format:check
 ```
+
+Check package contents:
+
+```sh
+npm run pack:check
+```
+
+如果你的本機有 Codex skill/plugin validators，請用你環境中的 validator path 驗證 packaged plugin。
+
+手動 release 檢查請看 `docs/RELEASE_CHECKLIST.md` 和 `docs/DOGFOOD.md`。
 
 ## License
 

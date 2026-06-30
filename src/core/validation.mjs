@@ -113,7 +113,12 @@ export function validateState(state) {
     }
   }
 
-  for (const key of ['current_session_id', 'parent_session_id', 'next_resume_at', 'cooldown_reason']) {
+  for (const key of [
+    'current_session_id',
+    'parent_session_id',
+    'next_resume_at',
+    'cooldown_reason',
+  ]) {
     if (state[key] !== null && typeof state[key] !== 'string') {
       pushTypeError(errors, 'state', key, 'a string or null');
     }

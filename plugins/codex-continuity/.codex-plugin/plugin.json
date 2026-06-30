@@ -12,12 +12,7 @@
     "longDescription": "Adds a continuity skill that directs Codex to read .agent handoff state, checkpoint progress, and recover across resumes, cooldowns, context pressure, handoffs, and continuation sessions.",
     "developerName": "Continuation Layer",
     "category": "Productivity",
-    "capabilities": [
-      "Interactive",
-      "Write"
-    ],
-    "defaultPrompt": [
-      "Resume this repo using the continuity skill and .agent durable state."
-    ]
+    "capabilities": ["Interactive", "Write"],
+    "defaultPrompt": ["Resume this repo using the continuity skill and .agent durable state."]
   }
 }

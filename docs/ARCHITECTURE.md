@@ -28,7 +28,7 @@ CLI command
 - Run recovery checks.
 - Manage task completion and archive rules.
 
-Phase 1 implements the first four responsibilities. Recovery check, completion, and archive rules remain later-phase work.
+The v0.1 preview implements durable state validation, snapshots, recovery checks, context handoff, overnight gates, and task completion/archive cleanup. Core modules stay provider-neutral; provider-specific commands remain behind adapters.
 
 ## Supervisor Responsibilities
 
@@ -39,7 +39,7 @@ Phase 1 implements the first four responsibilities. Recovery check, completion, 
 - Wait outside hook runtime.
 - Resume same session or start continuation session.
 
-Phase 2 implements start/resume process execution, log capture, cooldown detection, reset-time calculation, and state transitions. It does not sleep until reset yet.
+The v0.1 preview implements start/resume process execution, log capture, cooldown detection, reset-time calculation, and state transitions. Long waits are not performed inside hooks; resume commands respect recorded `next_resume_at` state.
 
 ## Provider Adapter Responsibilities
 
@@ -52,7 +52,7 @@ Phase 2 implements start/resume process execution, log capture, cooldown detecti
 - Build resume prompt.
 - Build continuation prompt.
 
-Phase 2 implements the Codex adapter and provider selection boundary. Claude Code remains a later skeleton.
+The v0.1 preview implements the Codex adapter and provider selection boundary. Claude Code remains a future provider path.
 
 ## Plugin And Hook Responsibilities
 

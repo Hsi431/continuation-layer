@@ -90,18 +90,24 @@ function printCommandSpec(commandSpec) {
 }
 
 function printSupervisorResult(result) {
-  console.log(JSON.stringify({
-    status: result.status,
-    exitCode: result.result?.exitCode ?? null,
-    logPath: result.result?.logPath ?? null,
-    nextResumeAt: result.nextResumeAt ?? null,
-    waiting: result.waiting ?? false,
-    confirmationRequired: result.confirmationRequired ?? false,
-    continuationStarted: result.continuationStarted ?? false,
-    autoContinued: result.autoContinued ?? false,
-    recoveryOk: result.recovery?.ok ?? null,
-    recoveryFailures: result.recovery?.failures ?? [],
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        status: result.status,
+        exitCode: result.result?.exitCode ?? null,
+        logPath: result.result?.logPath ?? null,
+        nextResumeAt: result.nextResumeAt ?? null,
+        waiting: result.waiting ?? false,
+        confirmationRequired: result.confirmationRequired ?? false,
+        continuationStarted: result.continuationStarted ?? false,
+        autoContinued: result.autoContinued ?? false,
+        recoveryOk: result.recovery?.ok ?? null,
+        recoveryFailures: result.recovery?.failures ?? [],
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 function printOvernightResult(result) {
@@ -153,7 +159,11 @@ async function main() {
       provider: options.provider ?? 'codex',
       taskId: options.taskId ?? null,
     });
-    console.log(result.created ? `initialized: ${result.repoRoot}` : `already initialized: ${result.repoRoot}`);
+    console.log(
+      result.created
+        ? `initialized: ${result.repoRoot}`
+        : `already initialized: ${result.repoRoot}`,
+    );
     return;
   }
 
@@ -194,10 +204,13 @@ async function main() {
   }
 
   if (command === 'new-task') {
-    printArchiveResult('new task', startNewTask({
-      taskId: options.taskId ?? null,
-      provider: options.provider ?? null,
-    }));
+    printArchiveResult(
+      'new task',
+      startNewTask({
+        taskId: options.taskId ?? null,
+        provider: options.provider ?? null,
+      }),
+    );
     return;
   }
 
@@ -227,10 +240,12 @@ async function main() {
       return;
     }
 
-    printSupervisorResult(await continueManagedSession({
-      confirmed: options.yes,
-      prompt: options.prompt,
-    }));
+    printSupervisorResult(
+      await continueManagedSession({
+        confirmed: options.yes,
+        prompt: options.prompt,
+      }),
+    );
     return;
   }
 

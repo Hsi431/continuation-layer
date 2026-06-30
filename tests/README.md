@@ -25,5 +25,10 @@ Current coverage:
 - simulated cooldown transition to `cooling_down`
 - manual resume waiting before reset
 - same-session resume after cooldown
+- recovery checks over handoff, next action, git status, and git diff
+- context handoff and `codex fork` child continuation command construction
+- Codex hook entrypoint behavior for session start, stop, pre-compact, and post-compact
+- overnight enable/disable and guarded auto-continuation
+- task completion archives and new-task stale state cleanup
 
-Later phases add recovery check and non-Codex provider adapter coverage.
+Future provider work should add non-Codex adapter coverage and opt-in real provider smoke tests.

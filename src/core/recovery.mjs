@@ -67,11 +67,9 @@ function extractNextAction(text) {
 }
 
 function isCompleteHandoff(text) {
-  return [
-    '## Task ID',
-    '## Status',
-    '## Next Exact Steps',
-  ].every((section) => String(text).includes(section));
+  return ['## Task ID', '## Status', '## Next Exact Steps'].every((section) =>
+    String(text).includes(section),
+  );
 }
 
 function hasUnmergedStatus(status) {
