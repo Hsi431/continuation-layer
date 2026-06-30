@@ -19,6 +19,7 @@ The v0 target is Codex CLI. Claude Code support is planned as a later provider p
 - Starts child continuation sessions with `codex fork`, not plain resume.
 - Requires user confirmation by default before starting a child session.
 - Supports explicit overnight mode with recovery gates before unattended continuation.
+- Marks tasks complete and archives active handoff/snapshot state before a fresh task starts.
 
 ## Why This Exists
 
@@ -47,10 +48,10 @@ Completed:
 - Codex lifecycle hooks for session start, stop, pre-compact, and post-compact.
 - Context handoff and child continuation through `codex fork`.
 - Guarded overnight auto-continuation.
+- Task completion and cleanup.
 
 Still planned before a polished v0 release:
 
-- Phase 7 cleanup: task completion, handoff archive, stale state cleanup, and log retention docs.
 - Phase 8 / v1 direction: Claude Code provider skeleton and later full Claude Code support.
 
 ## Safety Boundaries
@@ -127,6 +128,18 @@ node bin/continuity.mjs overnight disable
 
 Overnight continuation only starts when handoff, recovery, git state, and parent-session checks pass.
 
+Mark a task complete and archive active handoff/snapshot state:
+
+```sh
+node bin/continuity.mjs complete
+```
+
+Start a fresh task without carrying stale handoff state forward:
+
+```sh
+node bin/continuity.mjs new-task --task-id next-task
+```
+
 ## Codex Integration
 
 The Codex plugin package lives in:
@@ -167,7 +180,7 @@ PLAN.md                         implementation plan
 
 v0:
 
-- Finish Phase 7 cleanup and release polish.
+- Release polish and packaging.
 - Keep Codex as the primary supported provider.
 - Keep automation guarded and explicit.
 

@@ -1,13 +1,15 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  completeTask,
   initAgent,
   setOvernightMode,
+  startNewTask,
   statusAgent,
   writeMechanicalSnapshot,
 } from '../src/core/agent-state.mjs';
@@ -183,4 +185,66 @@ test('mechanical snapshot records git state and updates checkpoint event', () =>
   assert.equal(state.last_event, 'checkpoint_written');
   assert.equal(sessions.length, 2);
   assert.equal(JSON.parse(sessions[1]).event, 'checkpoint_written');
+});
+
+test('complete marks task complete and archives active handoff and snapshot', () => {
+  const repo = makeRepo();
+  initAgent({ cwd: repo, taskId: 'task-complete' });
+  writeFileSync(join(repo, '.agent', 'HANDOFF.md'), '# Handoff\n\ncustom active handoff\n');
+  rmSync(join(repo, '.agent', 'handoffs'), { recursive: true, force: true });
+  rmSync(join(repo, '.agent', 'snapshots'), { recursive: true, force: true });
+
+  const result = completeTask({
+    cwd: repo,
+    reason: 'done',
+    timestamp: '2026-06-30T00:00:00.000Z',
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+  const config = readJson(join(repo, '.agent', 'config.json'));
+  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+
+  assert.equal(result.state.status, 'completed');
+  assert.equal(state.status, 'completed');
+  assert.equal(state.last_event, 'task_completed');
+  assert.equal(config.overnight_mode, false);
+  assert.equal(config.auto_continue_after_handoff, false);
+  assert.equal(existsSync(join(repo, '.agent', 'handoffs')), true);
+  assert.equal(existsSync(join(repo, '.agent', 'snapshots')), true);
+  assert.match(readFileSync(result.archive.handoff, 'utf8'), /custom active handoff/);
+  assert.match(readFileSync(join(repo, '.agent', 'HANDOFF.md'), 'utf8'), /Task completed/);
+  assert.equal(sessions.at(-1).event, 'task_completed');
+});
+
+test('new task archives old handoff and resets active state without stale pollution', () => {
+  const repo = makeRepo();
+  initAgent({ cwd: repo, taskId: 'task-old' });
+  writeFileSync(join(repo, '.agent', 'HANDOFF.md'), '# Handoff\n\nold active handoff\n');
+  setOvernightMode({
+    cwd: repo,
+    enabled: true,
+    timestamp: '2026-06-30T00:00:00.000Z',
+  });
+
+  const result = startNewTask({
+    cwd: repo,
+    taskId: 'task-new',
+    timestamp: '2026-06-30T00:01:00.000Z',
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+  const config = readJson(join(repo, '.agent', 'config.json'));
+  const activeHandoff = readFileSync(join(repo, '.agent', 'HANDOFF.md'), 'utf8');
+  const activeNext = readFileSync(join(repo, '.agent', 'NEXT.md'), 'utf8');
+  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+
+  assert.equal(result.state.task_id, 'task-new');
+  assert.equal(state.task_id, 'task-new');
+  assert.equal(state.status, 'idle');
+  assert.equal(state.current_session_id, null);
+  assert.equal(config.overnight_mode, false);
+  assert.equal(config.auto_continue_after_handoff, false);
+  assert.match(readFileSync(result.archive.handoff, 'utf8'), /old active handoff/);
+  assert.match(activeHandoff, /task-new/);
+  assert.doesNotMatch(activeHandoff, /old active handoff/);
+  assert.match(activeNext, /Define the first action for this new task/);
+  assert.equal(sessions.at(-1).event, 'task_created');
 });

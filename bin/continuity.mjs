@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import {
+  completeTask,
   initAgent,
   loadAgentState,
   setOvernightMode,
+  startNewTask,
   statusAgent,
   writeMechanicalSnapshot,
 } from '../src/core/agent-state.mjs';
@@ -56,6 +58,8 @@ Commands:
   continue             Write handoff, then start child continuation after confirmation
   overnight enable     Enable overnight auto-continuation
   overnight disable    Disable overnight auto-continuation
+  complete             Mark current task complete and archive handoff state
+  new-task             Archive current state and start a fresh task
 
 Options:
   --task-id <id>       Task id for init
@@ -103,6 +107,12 @@ function printSupervisorResult(result) {
 function printOvernightResult(result) {
   console.log(`overnight mode: ${result.config.overnight_mode}`);
   console.log(`auto continue after handoff: ${result.config.auto_continue_after_handoff}`);
+}
+
+function printArchiveResult(label, result) {
+  console.log(`${label}: ${result.state.task_id}`);
+  console.log(`archived handoff: ${result.archive.handoff}`);
+  console.log(`archived snapshot: ${result.archive.snapshot}`);
 }
 
 function dryRunCommand(kind, prompt) {
@@ -176,6 +186,19 @@ async function main() {
     }
 
     throw new Error(`Unknown overnight action: ${action}`);
+  }
+
+  if (command === 'complete') {
+    printArchiveResult('completed task', completeTask());
+    return;
+  }
+
+  if (command === 'new-task') {
+    printArchiveResult('new task', startNewTask({
+      taskId: options.taskId ?? null,
+      provider: options.provider ?? null,
+    }));
+    return;
   }
 
   if (command === 'start') {

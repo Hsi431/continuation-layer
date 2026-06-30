@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { basename } from 'node:path';
+import { copyFileSync, existsSync, readFileSync, readdirSync } from 'node:fs';
+import { basename, join } from 'node:path';
 
 import {
   DEFAULT_CONFIG,
@@ -19,6 +19,8 @@ import {
   formatDecisions,
   formatContextHandoff,
   formatHandoff,
+  formatCompletedHandoff,
+  formatNewTaskNext,
   formatNext,
   formatSnapshot,
 } from './templates.mjs';
@@ -246,6 +248,86 @@ export function setOvernightMode({
   };
 }
 
+export function completeTask({
+  cwd = process.cwd(),
+  reason = 'task completed',
+  timestamp = nowIso(),
+} = {}) {
+  const repoRoot = resolveRepoRoot(cwd);
+  const filePaths = paths(repoRoot);
+  const { config, state } = loadAgentState(repoRoot);
+  const archive = archiveCurrentTaskFiles(repoRoot, state.task_id, timestamp);
+  const nextConfig = {
+    ...config,
+    overnight_mode: false,
+    auto_continue_after_handoff: false,
+  };
+  const nextState = {
+    ...state,
+    status: 'completed',
+    mode: 'normal',
+    overnight_mode: false,
+    auto_continue_after_handoff: false,
+    next_resume_at: null,
+    cooldown_reason: null,
+    last_event: 'task_completed',
+    updated_at: timestamp,
+  };
+
+  assertValidConfig(nextConfig);
+  assertValidState(nextState);
+  writeJsonFile(filePaths.config, nextConfig);
+  saveState(repoRoot, nextState);
+  writeTextFile(filePaths.handoff, formatCompletedHandoff({ state: nextState, timestamp }));
+  writeSnapshotForState(repoRoot, nextState, timestamp);
+  appendEvent(repoRoot, nextState, 'task_completed', reason, timestamp);
+
+  return {
+    repoRoot,
+    state: nextState,
+    archive,
+  };
+}
+
+export function startNewTask({
+  cwd = process.cwd(),
+  provider = null,
+  taskId = null,
+  timestamp = nowIso(),
+} = {}) {
+  const repoRoot = resolveRepoRoot(cwd);
+  const filePaths = paths(repoRoot);
+  const { config, state } = loadAgentState(repoRoot);
+  const archive = archiveCurrentTaskFiles(repoRoot, state.task_id, timestamp);
+  const nextConfig = {
+    ...config,
+    provider: provider ?? config.provider,
+    overnight_mode: false,
+    auto_continue_after_handoff: false,
+  };
+  const nextState = makeInitialState({
+    repoRoot,
+    provider: nextConfig.provider,
+    taskId: taskId ?? makeTaskId(repoRoot, timestamp),
+    timestamp,
+  });
+
+  assertValidConfig(nextConfig);
+  assertValidState(nextState);
+  writeJsonFile(filePaths.config, nextConfig);
+  saveState(repoRoot, nextState);
+  writeTextFile(filePaths.handoff, formatHandoff(nextState, timestamp));
+  writeTextFile(filePaths.next, formatNewTaskNext());
+  writeTextFile(filePaths.snapshot, buildSnapshotText(repoRoot, nextState, timestamp));
+  appendEvent(repoRoot, nextState, 'task_created', `new task from ${state.task_id}`, timestamp);
+
+  return {
+    repoRoot,
+    state: nextState,
+    archive,
+  };
+}
+
 export function buildContinuityContext({ cwd = process.cwd(), source = 'session start' } = {}) {
   const repoRoot = resolveRepoRoot(cwd);
   const { state } = loadAgentState(repoRoot);
@@ -381,6 +463,34 @@ function writeContextHandoffForState({ repoRoot, state, trigger, timestamp }) {
   }));
 
   return nextState;
+}
+
+function archiveCurrentTaskFiles(repoRoot, taskId, timestamp) {
+  ensureAgentDirectories(repoRoot);
+  const filePaths = paths(repoRoot);
+  const archiveId = `${safeFilePart(timestamp)}-${safeFilePart(taskId)}`;
+  const handoffArchive = join(filePaths.handoffsDir, `${archiveId}.md`);
+  const snapshotArchive = join(filePaths.snapshotsDir, `${archiveId}.md`);
+
+  if (existsSync(filePaths.handoff)) {
+    copyFileSync(filePaths.handoff, handoffArchive);
+  }
+
+  if (existsSync(filePaths.snapshot)) {
+    copyFileSync(filePaths.snapshot, snapshotArchive);
+  }
+
+  return {
+    handoff: handoffArchive,
+    snapshot: snapshotArchive,
+  };
+}
+
+function safeFilePart(value) {
+  return String(value)
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || 'unknown';
 }
 
 function readNextAction(path) {

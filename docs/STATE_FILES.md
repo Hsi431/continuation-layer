@@ -85,3 +85,11 @@ The `.agent` directory is durable task memory for the current repository.
 - With overnight automation enabled, `continuity continue` writes handoff, runs recovery checks, and starts child continuation without `--yes`.
 - Incomplete handoff, stale handoff, missing next action, missing parent session id, git conflicts, or other recovery failures record `continuation_aborted` and do not start the provider command.
 - Session chain remains traceable through `continuation_started` and the following checkpoint event in `sessions.jsonl`.
+
+## Phase 7 Completion and Cleanup
+
+- `continuity complete` archives active `HANDOFF.md` and `AUTO_SNAPSHOT.md`, marks state `completed`, disables overnight automation, and records `task_completed`.
+- `continuity new-task --task-id <id>` archives the active handoff/snapshot pair before writing fresh active handoff, next, state, and snapshot files.
+- Archived handoffs are written under `.agent/handoffs/`; archived snapshots are written under `.agent/snapshots/`.
+- Active handoff files should describe only the current task. Historical context belongs in archive files.
+- Logs remain under `.agent/logs/`; retention is governed by `config.log_retention_days` and should be enforced by future packaging or maintenance commands rather than hooks.

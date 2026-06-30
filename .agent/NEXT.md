@@ -2,22 +2,30 @@
 
 ## Next Action
 
-Commit README open-source preparation.
+Commit Phase 7.
 
 ## Target Files
 
+- `bin/continuity.mjs`
+- `src/core/agent-state.mjs`
+- `src/core/files.mjs`
+- `src/core/templates.mjs`
+- `tests/init-status-snapshot.test.mjs`
 - `README.md`
 - `README.zh-TW.md`
+- `docs/STATE_FILES.md`
+- `docs/SAFETY.md`
 - `.agent/HANDOFF.md`
 - `.agent/NEXT.md`
 
 ## Constraints
 
-- README should position current work as Codex-first v0, not full cross-provider v1.
-- Do not claim Phase 7 cleanup is complete.
-- Do not claim Claude Code full runtime is implemented.
-- Keep safety boundaries explicit: no provider-limit bypass, no account rotation, no auto commit.
-- Keep English and Traditional Chinese README files mutually linked.
+- Phase 7 only covers completion and cleanup.
+- Task can be marked complete.
+- Old handoff state should be archived.
+- New tasks should not be polluted by stale handoff files.
+- Log retention and handoff rotation must be documented.
+- Do not add Claude Code runtime.
 
 ## First Command To Inspect
 

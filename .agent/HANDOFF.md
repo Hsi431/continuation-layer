@@ -18,7 +18,7 @@ None.
 
 ## Status
 
-Phase 6 is committed as `345f1f8 Implement overnight continuation mode`. Open-source README preparation is reviewed and ready to commit.
+Phase 7 completion and cleanup is complete locally. Repeat subagent review passed, and final verification passed. Ready to commit Phase 7.
 
 ## Goal
 
@@ -26,7 +26,7 @@ Build Continuation Layer v0 for Codex CLI first, with a future Claude Code adapt
 
 ## Current Stage
 
-Post-Phase 6 documentation polish complete locally. English README has been rewritten for open-source positioning, and Traditional Chinese README has been added.
+Phase 7 complete locally. Completion/cleanup runtime, tests, and docs are implemented, reviewed, and verified.
 
 ## What Changed
 
@@ -148,6 +148,22 @@ Post-Phase 6 documentation polish complete locally. English README has been rewr
 - Linked English and Traditional Chinese README files to each other.
 - Docs-only review passed with no blocking findings.
 - Verification passed: `npm test`, `npm run check`, and `git diff --check`.
+- Committed README open-source preparation as `531ac2f Prepare open source README`.
+- Confirmed post-README worktree was clean.
+- Started Phase 7 completion and cleanup.
+- Added `completeTask` to mark state completed, disable overnight automation, archive active handoff/snapshot, write completed handoff, and record `task_completed`.
+- Added `startNewTask` to archive current active handoff/snapshot, reset state/session fields, write fresh handoff/next/snapshot, and record a new `task_created` event.
+- Added CLI `continuity complete` and `continuity new-task --task-id <id>`.
+- Added archive paths for `.agent/handoffs/` and `.agent/snapshots/`.
+- Added tests for task completion archives and new task stale-handoff cleanup.
+- Updated README, Traditional Chinese README, state docs, and safety docs for Phase 7 cleanup, handoff rotation, and log retention boundaries.
+- Ran `npm test`, `npm run check`, and `git diff --check`; all passed.
+- First Phase 7 review failed because `completeTask` and `startNewTask` could archive into missing `.agent/handoffs/` or `.agent/snapshots/` directories for upgraded pre-Phase-7 state.
+- Fixed archive flow to call `ensureAgentDirectories()` before copying archive files.
+- Added regression coverage by removing archive directories before `completeTask`.
+- Reran `npm test`, `npm run check`, and `git diff --check`; all passed after the fix.
+- Repeat Phase 7 review passed with no blocking findings.
+- Final verification passed: `npm test`, `npm run check`, skill validator, plugin validator, and `git diff --check`.
 
 ## Files Touched
 
@@ -222,7 +238,7 @@ Post-Phase 6 documentation polish complete locally. English README has been rewr
 
 ## Current Git State Summary
 
-Git repository on branch `master`. Latest commit is `345f1f8 Implement overnight continuation mode`. README open-source preparation changes are verified and ready to commit.
+Git repository on branch `master`. Latest commit is `531ac2f Prepare open source README`. Phase 7 changes are verified and ready to commit.
 
 ## Tests Run
 
@@ -287,7 +303,7 @@ Git repository on branch `master`. Latest commit is `345f1f8 Implement overnight
 
 ## Test Result
 
-Passed. README documentation review and verification passed.
+Passed. First review failed, fix was applied, repeat review passed, and final verification passed.
 
 ## Known Risks
 
@@ -303,14 +319,14 @@ Passed. README documentation review and verification passed.
 
 ## Unfinished Work
 
-- Commit README open-source preparation.
+- Commit Phase 7.
 - Confirm post-commit worktree is clean.
 
 ## Next Exact Steps
 
-1. Commit README open-source preparation.
+1. Commit Phase 7.
 2. Confirm post-commit worktree is clean.
-3. Start Phase 7 cleanup.
+3. Start Phase 8 only when requested.
 
 ## Do Not Redo
 
@@ -321,4 +337,4 @@ Passed. README documentation review and verification passed.
 
 ## Last Updated
 
-2026-06-30T00:24:20Z
+2026-06-30T00:35:00Z

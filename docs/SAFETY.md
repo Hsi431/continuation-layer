@@ -25,6 +25,7 @@
 - Default continuation stops for user confirmation before starting a child session.
 - Recovery check failure stops continuation before the provider command is launched.
 - Overnight auto-continuation requires explicit `overnight_mode` and `auto_continue_after_handoff`.
+- New tasks must archive old active handoff state before fresh handoff files are written.
 
 ## Overnight Mode Guardrails
 
@@ -46,3 +47,10 @@ Automatic continuation is allowed only when:
 - Write `.agent/HANDOFF.md` before starting child continuation.
 - Read `.agent/HANDOFF.md`, `.agent/NEXT.md`, `.agent/DECISIONS.md`, `git status --short`, and `git diff --no-color` before editing in the child session.
 - Use provider-specific child continuation commands outside core; Codex uses `codex fork`.
+
+## Cleanup Guardrails
+
+- `continuity complete` should mark only durable task state; it must not commit or edit user project files.
+- `continuity new-task` must not reuse archived handoff text as active state.
+- Handoff rotation archives active handoff/snapshot pairs before replacing them.
+- Log retention should remove only old `.agent/logs/` entries in a future maintenance command; hooks must not perform retention cleanup.

@@ -35,6 +35,7 @@ Continuation Layer 的核心想法很簡單：**repo 裡的 durable state 比對
 - context handoff 後，用 `codex fork` 開 child continuation。
 - 預設不會自動開 child session，會先等 user confirmation。
 - 明確啟用 overnight mode 後，才允許 gated auto-continuation。
+- 可以標記 task complete，並把舊 handoff / snapshot archive 起來。
 
 ## 這不是什麼
 
@@ -131,6 +132,18 @@ node bin/continuity.mjs overnight disable
 
 Overnight continuation 只有在 handoff、recovery、git state、parent session id 都通過時才會啟動。
 
+標記目前 task complete，並 archive active handoff / snapshot：
+
+```sh
+node bin/continuity.mjs complete
+```
+
+開始乾淨的新 task，不沿用舊 handoff：
+
+```sh
+node bin/continuity.mjs new-task --task-id next-task
+```
+
 ## 目前狀態
 
 v0 已完成 Codex-first 的核心功能：
@@ -142,14 +155,7 @@ v0 已完成 Codex-first 的核心功能：
 - Context handoff
 - `codex fork` child continuation
 - Guarded overnight mode
-
-開源前還建議補 Phase 7：
-
-- task completion；
-- old handoff archive；
-- stale state cleanup；
-- log retention 文件；
-- 新任務不要被舊 handoff 汙染。
+- Task completion / cleanup
 
 Phase 8 / v1 方向會放 Claude Code：
 

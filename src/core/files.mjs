@@ -49,7 +49,9 @@ export function appendJsonLine(path, value) {
 export function paths(repoRoot) {
   return {
     agentDir: agentPath(repoRoot),
+    handoffsDir: agentPath(repoRoot, 'handoffs'),
     logsDir: agentPath(repoRoot, 'logs'),
+    snapshotsDir: agentPath(repoRoot, 'snapshots'),
     config: agentPath(repoRoot, CONFIG_FILE),
     state: agentPath(repoRoot, STATE_FILE),
     handoff: agentPath(repoRoot, HANDOFF_FILE),

@@ -202,6 +202,113 @@ Stop if durable state and git state disagree.
 `;
 }
 
+export function formatCompletedHandoff({ state, timestamp }) {
+  return `# Handoff
+
+## Task ID
+
+${state.task_id}
+
+## Provider
+
+${state.provider}
+
+## Current Session
+
+${state.current_session_id ?? 'None.'}
+
+## Parent Session
+
+${state.parent_session_id ?? 'None.'}
+
+## Status
+
+Task completed.
+
+## Goal
+
+The task has been marked complete.
+
+## Current Stage
+
+Completed.
+
+## What Changed
+
+- Marked task complete.
+- Archived prior handoff and snapshot state.
+
+## Files Touched
+
+- \`.agent/\`
+
+## Important Decisions
+
+- New tasks should start from fresh handoff and next-step files.
+
+## Current Git State Summary
+
+See \`.agent/AUTO_SNAPSHOT.md\`.
+
+## Tests Run
+
+Not run by completion marker.
+
+## Test Result
+
+Not run.
+
+## Known Risks
+
+- Review archived handoff files if historical context is needed.
+
+## Unfinished Work
+
+- None recorded.
+
+## Next Exact Steps
+
+1. Start a new task with \`continuity new-task --task-id <id>\` when needed.
+
+## Do Not Redo
+
+- Do not continue this completed task unless explicitly reopened by a new task workflow.
+
+## Last Updated
+
+${timestamp}
+`;
+}
+
+export function formatNewTaskNext() {
+  return `# Next
+
+## Next Action
+
+Define the first action for this new task.
+
+## Target Files
+
+- \`.agent/HANDOFF.md\`
+- \`.agent/NEXT.md\`
+
+## Constraints
+
+- Do not reuse archived handoff state as active state.
+- Read git status and git diff before editing project files.
+
+## First Command To Inspect
+
+\`\`\`sh
+git status --short
+\`\`\`
+
+## Stop Condition
+
+Stop if active state appears polluted by an archived task.
+`;
+}
+
 export function formatDecisions(timestamp) {
   return `# Decisions
 
