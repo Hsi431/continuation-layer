@@ -2,34 +2,26 @@
 
 ## Next Action
 
-Verify, commit, and push Hsi431 owner fix.
+Optional v0.1.0 tag/release or new-session plugin test.
 
 ## Target Files
 
-- `package.json`
-- `README.md`
-- `README.zh-TW.md`
-- `docs/RELEASE_CHECKLIST.md`
-- `docs/releases/v0.1.0.md`
-- `docs/DOGFOOD.md`
 - `.agent/HANDOFF.md`
 - `.agent/NEXT.md`
 
 ## Constraints
 
-- Only fix GitHub owner/metadata/docs and release hygiene.
-- Correct owner is `Hsi431/continuation-layer`.
-- Do not push to the old incorrect owner.
 - Do not create tags/releases unless explicitly requested.
+- New Codex sessions are required to pick up newly installed plugin hooks/skills.
 - Keep `.agent` as a sanitized dogfood example.
 - Do not add runtime features.
 
 ## First Command To Inspect
 
 ```sh
-npm run format:check
+git status --short
 ```
 
 ## Stop Condition
 
-Stop if final verification fails or remote is not `Hsi431/continuation-layer`.
+Stop if tag/release publishing is requested but CI is not green.

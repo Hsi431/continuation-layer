@@ -18,7 +18,7 @@ None.
 
 ## Status
 
-Open-source README/license polish was committed as `5aa3539 Polish open source README and license` and pushed to `origin/master`. v0.1 preview release polish is in progress; baseline review found formatting, package metadata, README path, CI, and release-doc gaps.
+v0.1 preview release polish and GitHub owner correction are complete. Latest pushed commit is `a49d93b Fix GitHub owner metadata for v0.1` on `Hsi431/continuation-layer`; CI is green. Local installation is complete: the `continuity` CLI is linked, and the Codex `codex-continuity@personal` plugin is installed and enabled.
 
 ## Goal
 
@@ -26,7 +26,7 @@ Build Continuation Layer v0 for Codex CLI first, with a future Claude Code adapt
 
 ## Current Stage
 
-v0.1 preview release polish. This round is limited to formatting, README/docs polish, package metadata, CI, release hygiene, install experience, and maintainability. No new provider/runtime features.
+v0.1 preview is ready for tag/release when requested. Current local machine can use `continuity` directly, and new Codex sessions can load the installed continuity plugin/skill/hooks.
 
 ## What Changed
 
@@ -210,8 +210,16 @@ v0.1 preview release polish. This round is limited to formatting, README/docs po
 - Documented the `.agent` dogfood strategy in README, README.zh-TW, `docs/DOGFOOD.md`, `docs/RELEASE_CHECKLIST.md`, and `docs/releases/v0.1.0.md`.
 - Owner/path/secret scans after the fix found no incorrect owner references, no personal absolute paths, and no precise secret matches.
 - Final owner-fix verification passed: `git status --short`, `git remote -v`, wrong-owner grep, personal path grep, `npm run format:check`, `npm run check`, `npm test`, `npm run pack:check`, `npm pack --dry-run`, precise secret scan, `git diff --check`, remote tag check, and release list check.
-- Confirmed `Hsi431/continuation-layer` is public, has the expected description/topics, and has no existing tags/releases before the first push.
-- Remaining work: commit, push to `origin/master`, then check CI on `Hsi431/continuation-layer`.
+- Confirmed `Hsi431/continuation-layer` is public, has the expected description/topics, and had no existing tags/releases before the first push.
+- Committed and pushed owner/metadata final polish as `a49d93b Fix GitHub owner metadata for v0.1`.
+- Confirmed GitHub Actions CI succeeded on `a49d93b`.
+- Confirmed post-push worktree was clean.
+- Confirmed local CLI install: `/home/fnata_claw/.npm-global/bin/continuity`.
+- Created local personal Codex plugin marketplace at `/home/fnata_claw/.agents/plugins/marketplace.json`.
+- Copied the packaged Codex plugin to `/home/fnata_claw/plugins/codex-continuity`.
+- Installed Codex plugin `codex-continuity@personal`; Codex reports it as `installed, enabled` version `0.1.0`.
+- Confirmed installed plugin cache at `/home/fnata_claw/.codex/plugins/cache/personal/codex-continuity/0.1.0`.
+- Validated the installed cached skill and plugin; both passed.
 
 ## Files Touched
 
@@ -400,10 +408,16 @@ Git repository on branch `master`. Latest committed baseline is `5aa3539 Polish 
 - owner-fix final precise secret scan
 - owner-fix final remote tag check
 - owner-fix final release list check
+- owner-fix post-push worktree check
+- owner-fix GitHub Actions CI check
+- local install `continuity status`
+- local install `codex plugin list`
+- local install cached Codex skill validator
+- local install cached Codex plugin validator
 
 ## Test Result
 
-v0.1 formatting/package review passed. First full release readiness review failed on two documentation overclaims; fixes were applied and verified. Repeat full release readiness review passed. Final verification passed. Owner/remote fix final verification passed. Commit and push are pending.
+v0.1 formatting/package review passed. First full release readiness review failed on two documentation overclaims; fixes were applied and verified. Repeat full release readiness review passed. Final verification passed. Owner/remote fix final verification passed. Owner-fix commit was pushed, CI passed, and local CLI/plugin installation was verified.
 
 ## Known Risks
 
@@ -419,16 +433,14 @@ v0.1 formatting/package review passed. First full release readiness review faile
 
 ## Unfinished Work
 
-- Commit owner/metadata final polish.
-- Push to `origin/master` at `Hsi431/continuation-layer`.
-- Check GitHub Actions status.
+- Create `v0.1.0` tag/release only when explicitly requested.
+- Start a new Codex thread to pick up the newly installed `codex-continuity` plugin/skill/hooks.
 
 ## Next Exact Steps
 
-1. Run subagent review for baseline v0.1 preview release readiness.
-2. Commit owner/metadata final polish.
-3. Push to `origin/master`.
-4. Check GitHub Actions status.
+1. If publishing a release, create tag `v0.1.0`.
+2. Use `docs/releases/v0.1.0.md` as the GitHub release note draft.
+3. Start a new Codex session when testing the installed plugin.
 
 ## Do Not Redo
 
@@ -439,4 +451,4 @@ v0.1 formatting/package review passed. First full release readiness review faile
 
 ## Last Updated
 
-2026-06-30T08:52:27Z
+2026-06-30T08:59:03Z
