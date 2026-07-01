@@ -78,28 +78,28 @@ Watch mode waits for provider reset windows. It does not bypass limits, rotate a
 
 ```mermaid
 flowchart TD
-    A[Codex long task] --> B{What happened?}
+    A["Codex long task"] --> B{"What happened?"}
 
-    B -->|Cooldown / rate limit| C[Supervisor records failure snapshot]
-    C --> D[Record next_resume_at]
-    D --> E[Resume same Codex session after reset]
-    E --> F[Read .agent state + git status/diff]
-    F --> G[Continue task]
+    B -->|"Cooldown / rate limit"| C["Supervisor records failure snapshot"]
+    C --> D["Record next_resume_at"]
+    D --> E["Resume same Codex session after reset"]
+    E --> F["Read .agent state and git status/diff"]
+    F --> G["Continue task"]
 
-    B -->|Context pressure / compaction risk| H[Write HANDOFF.md + NEXT.md]
-    H --> I[Write AUTO_SNAPSHOT.md]
-    I --> J{Overnight mode?}
+    B -->|"Context pressure / compaction risk"| H["Write HANDOFF.md + NEXT.md"]
+    H --> I["Write AUTO_SNAPSHOT.md"]
+    I --> J{"Overnight mode?"}
 
-    J -->|Off by default| K[Ask user before continuation]
-    K --> L[User confirms]
-    L --> M[Start child session with codex fork]
+    J -->|"Off by default"| K["Ask user before continuation"]
+    K --> L["User confirms"]
+    L --> M["Start child session with codex fork"]
 
-    J -->|On explicitly| N[Run recovery checks]
-    N -->|Pass| M
-    N -->|Fail| O[Stop and wait for user]
+    J -->|"On explicitly"| N["Run recovery checks"]
+    N -->|"Pass"| M
+    N -->|"Fail"| O["Stop and wait for user"]
 
-    M --> P[Child session reads handoff]
-    P --> Q[Check git state]
+    M --> P["Child session reads handoff"]
+    P --> Q["Check git state"]
     Q --> G
 ```
 
@@ -263,28 +263,34 @@ The Codex plugin package is included under `plugins/codex-continuity/`. For loca
 
 ## Quick Start
 
-From the repo you want to protect:
-
-Initialize:
+From the repo you want to protect, initialize durable state:
 
 ```sh
 continuity init --task-id refactor-auth
 ```
 
-Check status:
-
-```sh
-continuity status
-continuity status --json
-```
-
 ## Recommended: Watch mode
+
+Run long tasks through watch mode:
 
 ```sh
 continuity watch "finish this task"
 ```
 
-Watch mode keeps the supervisor alive, waits through cooldown windows, and automatically resumes the same Codex session.
+Watch mode:
+
+- starts the provider process,
+- detects cooldown from the supervised process,
+- keeps the supervisor alive,
+- waits until `next_resume_at`,
+- automatically resumes the same Codex session.
+
+Check state at any time:
+
+```sh
+continuity status
+continuity status --json
+```
 
 ## Manual mode
 
@@ -293,13 +299,25 @@ continuity start "finish this task"
 continuity resume
 ```
 
-Manual mode detects cooldowns, records `next_resume_at`, then exits. It does not keep a process alive.
+Manual: start / resume mode.
 
-Start Codex under the manual one-shot supervisor:
+Manual mode:
 
-```sh
-continuity start "refactor the auth module safely"
-```
+- runs once,
+- detects cooldown,
+- records `next_resume_at`,
+- exits,
+- requires the user to later run `continuity resume`.
+
+`continuity start` is not the watchdog. It does not keep a process alive and does not wait through the reset window.
+
+Continuation Layer can only monitor provider processes it starts. If you run `codex` directly, cooldown events will not be captured, state will not be updated, and watch mode cannot adopt that process later.
+
+## Planned: Interactive terminal wrapper
+
+v0.1 does not include an interactive terminal wrapper for arbitrary `codex` invocations. That is planned future work. Use `continuity watch`, `continuity start`, and `continuity resume` for the v0.1 workflows.
+
+### Other Commands
 
 Write a snapshot:
 

@@ -26,8 +26,11 @@ npm run pack:check
 - Install section lists Node >= 20, Codex CLI, and git requirements.
 - Safety boundaries still say no account rotation, no provider-limit bypass, no long hook sleeps, and no auto commit.
 - README recommends `continuity watch` for long-running tasks and labels `continuity start` as manual one-shot mode.
+- README separates recommended watch mode, manual start/resume mode, and planned interactive terminal wrapper work.
 - `docs/COOLDOWN_WATCHDOG.md` documents reset provenance, direct Codex limitations, snapshot policy, circuit breakers, and Ctrl-C behavior.
+- Cooldown same-session recovery treats stale semantic handoff as a warning, while context continuation and overnight child continuation remain strict.
 - Known limitations clearly label Claude Code as future/v1.
+- Known limitations clearly say direct `codex` processes cannot be monitored.
 - README does not contain personal absolute paths.
 - `docs/DOGFOOD.md` matches the current CLI.
 - Release notes exist under `docs/releases/`.
@@ -46,6 +49,7 @@ npm run pack:check
 - Confirm no personal machine paths remain in public README/docs.
 - Confirm no incorrect GitHub owner references remain.
 - Confirm committed `.agent/` files contain no secrets, provider-private session dumps, machine-local logs, or personal absolute paths.
+- Confirm committed `.agent/` files contain no stale git status, removed file references, or one-off runtime noise.
 - Confirm `.env` files are ignored.
 
 ## GitHub Release

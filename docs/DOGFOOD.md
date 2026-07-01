@@ -2,7 +2,7 @@
 
 Use this smoke test before a preview release. It avoids real provider calls unless you intentionally remove `--dry-run`.
 
-This repository intentionally commits a sanitized `.agent/` directory as a dogfood example. Before publishing, confirm it has no provider-private session dumps, secrets, machine-local logs, or personal absolute paths.
+This repository intentionally commits a sanitized `.agent/` directory as a dogfood example. Before publishing, confirm it has no provider-private session dumps, secrets, machine-local logs, personal absolute paths, stale git status, or references to removed local files.
 
 ## 1. Prepare a test repo
 
@@ -31,6 +31,8 @@ continuity start --dry-run "make a harmless README edit"
 
 Expected: the printed provider command uses Codex non-interactive execution and does not launch a real session. `watch` is the recommended long-lived cooldown watchdog; `start` is manual one-shot mode.
 
+v0.1 does not ship an interactive terminal wrapper for arbitrary `codex` processes. Direct `codex` commands are outside the watchdog; use `continuity watch` or `continuity start` when cooldown monitoring is required.
+
 ## 3. Snapshot
 
 ```sh
@@ -49,6 +51,8 @@ npm test -- tests/supervisor.test.mjs
 ```
 
 Expected: cooldown detection records `cooling_down`, `next_resume_at`, reset provenance, mechanical snapshot data, foreground wait behavior, same-session automatic resume, circuit breakers, and abort behavior without calling a real provider.
+
+Expected recovery policy: same-session cooldown resume treats stale or missing semantic handoff as a warning, while context continuation and overnight child continuation remain strict.
 
 ## 5. Continue dry-run
 

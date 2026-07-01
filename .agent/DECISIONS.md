@@ -38,3 +38,20 @@ Related files:
 - `plugins/codex-continuity/`
 
 Consequence: Cooldown waiting belongs to the supervisor.
+
+## Decision: Commit sanitized `.agent` dogfood state
+
+Reason: The repository uses Continuation Layer on itself, but release commits must not include provider-private dumps, local runtime logs, stale git status, or personal environment details.
+
+Date: 2026-07-01
+
+Related files:
+
+- `.agent/HANDOFF.md`
+- `.agent/NEXT.md`
+- `.agent/AUTO_SNAPSHOT.md`
+- `.agent/state.json`
+- `.agent/sessions.jsonl`
+- `docs/DOGFOOD.md`
+
+Consequence: `.agent` remains tracked as a dogfood example, with runtime noise scrubbed before release.

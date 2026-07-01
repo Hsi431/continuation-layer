@@ -1,6 +1,8 @@
 # Cooldown Watchdog
 
-This document is the release blocker note for the cooldown watchdog path.
+This document records the v0.1 cooldown watchdog behavior.
+
+Status: implemented for the Codex-first v0.1 preview.
 
 ## Problem Confirmation
 

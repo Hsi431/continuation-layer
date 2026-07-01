@@ -2,20 +2,29 @@
 
 ## Next Action
 
-Review and commit the cooldown watchdog blocker fix, then rerun CI before resuming v0.1 release prep.
+Commit the documentation and sanitized dogfood state, then wait for CI before tagging v0.1.
 
 ## Target Files
 
-- `src/supervisor/supervisor.mjs`
-- `bin/continuity.mjs`
+- `README.md`
+- `README.zh-TW.md`
 - `docs/COOLDOWN_WATCHDOG.md`
-- `tests/supervisor.test.mjs`
+- `docs/DOGFOOD.md`
+- `docs/RELEASE_CHECKLIST.md`
+- `docs/releases/v0.1.0.md`
+- `.agent/HANDOFF.md`
+- `.agent/NEXT.md`
+- `.agent/DECISIONS.md`
+- `.agent/AUTO_SNAPSHOT.md`
+- `.agent/state.json`
+- `.agent/sessions.jsonl`
 
 ## Constraints
 
-- Do not create tags/releases until watchdog changes are reviewed and CI is green.
-- Keep `.agent` as a sanitized dogfood example.
-- Do not broaden scope beyond cooldown watchdog follow-up fixes.
+- Do not change watchdog core logic.
+- Do not change recovery mode semantics.
+- Keep `.agent` as a sanitized dogfood example only.
+- Do not create tags or releases until release verification has passed and CI is green.
 
 ## First Command To Inspect
 
@@ -25,4 +34,4 @@ git status --short
 
 ## Stop Condition
 
-Stop if tag/release publishing is requested but CI is not green.
+Stop if release docs overclaim v0.1 behavior or `.agent` contains stale runtime state.
