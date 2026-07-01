@@ -71,3 +71,5 @@ The v0.1 preview implements the Codex adapter and provider selection boundary. C
 - `git status`
 - `git diff`
 - session chain events
+
+Recovery checks run in explicit modes. `strict_continuation` protects context continuation and overnight child sessions. `cooldown_resume` is only for same-session cooldown recovery and treats stale semantic handoff as a warning while keeping git conflicts, unreadable git state, invalid state, and missing session id as blockers.

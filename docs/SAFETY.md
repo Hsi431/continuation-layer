@@ -40,6 +40,9 @@
 - Stop watch mode when `max_cooldown_resumes` or `max_watch_hours` is reached.
 - Stop watch mode if the session id is missing, state validation fails, recovery checks fail, or the provider fails without cooldown.
 - Do not claim cooldown recovery wrote a semantic handoff after the provider rejected requests; rely on the latest existing handoff plus the mechanical snapshot.
+- Same-session cooldown resume treats stale or missing semantic handoff as a warning, not a blocker.
+- Child continuation and overnight automation stay strict: stale, missing, or incomplete handoff can block continuation.
+- Restarting `continuity watch` during `cooling_down` adopts the existing cooldown state and must not start a new provider process.
 
 ## Overnight Mode Guardrails
 

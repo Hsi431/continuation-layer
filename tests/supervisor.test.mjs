@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -38,6 +38,38 @@ function okRecovery() {
     handoff: '',
     gitStatus: '',
     gitDiff: '',
+  };
+}
+
+function setCoolingDownState(repo, changes = {}) {
+  const statePath = join(repo, '.agent', 'state.json');
+  const state = readJson(statePath);
+  writeJson(statePath, {
+    ...state,
+    status: 'cooling_down',
+    mode: 'cooldown_resume',
+    current_session_id: 'sess-existing',
+    next_resume_at: '2026-06-29T00:05:00.000Z',
+    cooldown_reason: '429 rate limit reached',
+    cooldown_detected_at: '2026-06-29T00:00:00.000Z',
+    reset_time_provenance: 'provider_relative',
+    ...changes,
+  });
+}
+
+function makeNoStartAdapter() {
+  let startCalled = false;
+  return {
+    adapter: {
+      ...codexAdapter,
+      startSessionCommand(options) {
+        startCalled = true;
+        return codexAdapter.startSessionCommand(options);
+      },
+    },
+    startWasCalled() {
+      return startCalled;
+    },
   };
 }
 
@@ -223,6 +255,7 @@ test('watch waits through cooldown and resumes the same session automatically', 
 
   const result = await watchManagedSession({
     cwd: repo,
+    prompt: 'work',
     adapter: codexAdapter,
     runner,
     clock: () => new Date(currentMs),
@@ -256,6 +289,184 @@ test('watch waits through cooldown and resumes the same session automatically', 
   );
 });
 
+test('watch auto-resumes after 5h cooldown even when handoff is stale', async () => {
+  const repo = makeRepo();
+  const staleAt = new Date('2026-06-29T00:00:00.000Z');
+  utimesSync(join(repo, '.agent', 'HANDOFF.md'), staleAt, staleAt);
+  let currentMs = Date.parse('2026-06-29T00:00:00.000Z');
+  const sleeps = [];
+  const commands = [];
+
+  const result = await watchManagedSession({
+    cwd: repo,
+    prompt: 'work',
+    adapter: codexAdapter,
+    clock: () => new Date(currentMs),
+    sleep: async (ms) => {
+      sleeps.push(ms);
+      currentMs += ms;
+    },
+    runner: async (spec) => {
+      commands.push(spec);
+      if (commands.length === 1) {
+        return {
+          exitCode: 1,
+          signal: null,
+          stdout: 'session_id: sess-five-hours\n429 rate limit reached; try again in 5 hours\n',
+          stderr: '',
+          logPath: null,
+        };
+      }
+
+      return {
+        exitCode: 0,
+        signal: null,
+        stdout: 'session_id: sess-five-hours\n',
+        stderr: '',
+        logPath: null,
+      };
+    },
+  });
+
+  assert.equal(result.status, 'checkpointed');
+  assert.equal(commands.length, 2);
+  assert.deepEqual(commands[1].args.slice(0, 5), ['exec', '-C', repo, 'resume', 'sess-five-hours']);
+  assert.equal(
+    sleeps.reduce((total, ms) => total + ms, 0),
+    5 * 60 * 60 * 1000 + 5 * 60 * 1000,
+  );
+  assert.match(result.recovery.warnings.join('\n'), /\.agent\/HANDOFF\.md is stale/);
+});
+
+test('watch adopts existing cooling_down state without starting a new provider session', async () => {
+  const repo = makeRepo();
+  setCoolingDownState(repo);
+  let currentMs = Date.parse('2026-06-29T00:00:00.000Z');
+  const sleeps = [];
+  const commands = [];
+  const { adapter, startWasCalled } = makeNoStartAdapter();
+
+  const result = await watchManagedSession({
+    cwd: repo,
+    adapter,
+    clock: () => new Date(currentMs),
+    sleep: async (ms) => {
+      sleeps.push(ms);
+      currentMs += ms;
+    },
+    recoveryCheck: okRecovery,
+    runner: async (spec) => {
+      commands.push(spec);
+      return {
+        exitCode: 0,
+        signal: null,
+        stdout: 'session_id: sess-existing\n',
+        stderr: '',
+        logPath: null,
+      };
+    },
+  });
+
+  assert.equal(result.status, 'checkpointed');
+  assert.equal(result.adoptedCooldown, true);
+  assert.equal(startWasCalled(), false);
+  assert.equal(commands.length, 1);
+  assert.deepEqual(commands[0].args.slice(0, 5), ['exec', '-C', repo, 'resume', 'sess-existing']);
+  assert.deepEqual(sleeps, [5 * 60 * 1000]);
+});
+
+test('watch adopts expired cooling_down state and resumes immediately', async () => {
+  const repo = makeRepo();
+  setCoolingDownState(repo, { next_resume_at: '2026-06-29T00:00:00.000Z' });
+  const currentMs = Date.parse('2026-06-29T00:10:00.000Z');
+  let slept = false;
+  const commands = [];
+  const { adapter, startWasCalled } = makeNoStartAdapter();
+
+  const result = await watchManagedSession({
+    cwd: repo,
+    adapter,
+    clock: () => new Date(currentMs),
+    sleep: async () => {
+      slept = true;
+    },
+    recoveryCheck: okRecovery,
+    runner: async (spec) => {
+      commands.push(spec);
+      return {
+        exitCode: 0,
+        signal: null,
+        stdout: 'session_id: sess-existing\n',
+        stderr: '',
+        logPath: null,
+      };
+    },
+  });
+
+  assert.equal(result.status, 'checkpointed');
+  assert.equal(startWasCalled(), false);
+  assert.equal(commands.length, 1);
+  assert.equal(slept, false);
+});
+
+test('watch aborts broken existing cooling_down without starting a provider session', async () => {
+  const repo = makeRepo();
+  setCoolingDownState(repo, { current_session_id: null });
+  const { adapter, startWasCalled } = makeNoStartAdapter();
+  let calls = 0;
+
+  const result = await watchManagedSession({
+    cwd: repo,
+    adapter,
+    clock: () => new Date('2026-06-29T00:00:00.000Z'),
+    recoveryCheck: okRecovery,
+    runner: async () => {
+      calls += 1;
+      return { exitCode: 0, signal: null, stdout: '', stderr: '', logPath: null };
+    },
+  });
+
+  assert.equal(result.status, 'watch_aborted');
+  assert.equal(startWasCalled(), false);
+  assert.equal(calls, 0);
+});
+
+test('watch aborts existing cooling_down without next_resume_at and does not start provider', async () => {
+  const repo = makeRepo();
+  setCoolingDownState(repo, { next_resume_at: null });
+  const { adapter, startWasCalled } = makeNoStartAdapter();
+  let calls = 0;
+
+  const result = await watchManagedSession({
+    cwd: repo,
+    adapter,
+    clock: () => new Date('2026-06-29T00:00:00.000Z'),
+    recoveryCheck: okRecovery,
+    runner: async () => {
+      calls += 1;
+      return { exitCode: 0, signal: null, stdout: '', stderr: '', logPath: null };
+    },
+  });
+
+  assert.equal(result.status, 'watch_aborted');
+  assert.equal(startWasCalled(), false);
+  assert.equal(calls, 0);
+});
+
+test('watch requires a prompt unless adopting existing cooling_down state', async () => {
+  const repo = makeRepo();
+
+  await assert.rejects(
+    () =>
+      watchManagedSession({
+        cwd: repo,
+        adapter: codexAdapter,
+        runner: async () => ({ exitCode: 0, signal: null, stdout: '', stderr: '', logPath: null }),
+      }),
+    /watch requires a prompt/,
+  );
+});
+
 test('watch immediately resumes when next_resume_at is already past', async () => {
   const repo = makeRepo();
   const currentMs = Date.parse('2026-06-29T00:10:00.000Z');
@@ -264,6 +475,7 @@ test('watch immediately resumes when next_resume_at is already past', async () =
 
   await watchManagedSession({
     cwd: repo,
+    prompt: 'work',
     adapter: codexAdapter,
     clock: () => new Date(currentMs),
     sleep: async () => {
@@ -301,6 +513,7 @@ test('watch repeats when automatic resume hits another cooldown', async () => {
 
   const result = await watchManagedSession({
     cwd: repo,
+    prompt: 'work',
     adapter: codexAdapter,
     clock: () => new Date(currentMs),
     sleep: async (ms) => {
@@ -344,6 +557,7 @@ test('watch stops when max cooldown resumes is reached', async () => {
 
   const result = await watchManagedSession({
     cwd: repo,
+    prompt: 'work',
     adapter: codexAdapter,
     clock: () => new Date(currentMs),
     sleep: async (ms) => {
@@ -378,6 +592,7 @@ test('watch stops when max watch hours is exceeded', async () => {
 
   const result = await watchManagedSession({
     cwd: repo,
+    prompt: 'work',
     adapter: codexAdapter,
     clock: () => new Date(currentMs),
     sleep: async (ms) => {
@@ -406,6 +621,7 @@ test('watch aborts when cooldown has no session id for same-session resume', asy
 
   const result = await watchManagedSession({
     cwd: repo,
+    prompt: 'work',
     adapter: codexAdapter,
     clock: () => new Date('2026-06-29T00:00:00.000Z'),
     recoveryCheck: okRecovery,
@@ -435,6 +651,7 @@ test('watch abort preserves cooldown state without marking failed', async () => 
 
   const result = await watchManagedSession({
     cwd: repo,
+    prompt: 'work',
     adapter: codexAdapter,
     signal: controller.signal,
     clock: () => new Date(currentMs),

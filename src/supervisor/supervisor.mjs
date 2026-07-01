@@ -9,7 +9,7 @@ import {
 } from '../core/agent-state.mjs';
 import { paths } from '../core/files.mjs';
 import { resolveRepoRoot } from '../core/git.mjs';
-import { runRecoveryCheck } from '../core/recovery.mjs';
+import { RECOVERY_MODES, runRecoveryCheck } from '../core/recovery.mjs';
 import { getProviderAdapter } from '../providers/adapter.mjs';
 import { runCommand } from './process-runner.mjs';
 
@@ -144,6 +144,11 @@ export async function watchManagedSession({
   const { config, state } = loadAgentState(repoRoot);
   const providerAdapter = adapter ?? getProviderAdapter(config.provider);
   const startedAt = clock().toISOString();
+  const adoptingCooldown = state.status === 'cooling_down';
+
+  if (!adoptingCooldown && prompt.trim().length === 0) {
+    throw new Error('watch requires a prompt unless adopting existing cooling_down state');
+  }
 
   const watchState = transitionState(
     repoRoot,
@@ -160,15 +165,22 @@ export async function watchManagedSession({
   );
   onEvent({ type: 'watch_started', state: watchState });
 
-  let outcome = await startManagedSession({
-    cwd: repoRoot,
-    prompt,
-    adapter: providerAdapter,
-    runner,
-    now: clock(),
-    signal,
-    mode: 'watch',
-  });
+  let lastRecovery = null;
+  let outcome = adoptingCooldown
+    ? {
+        status: 'cooling_down',
+        state: watchState,
+        adoptedCooldown: true,
+      }
+    : await startManagedSession({
+        cwd: repoRoot,
+        prompt,
+        adapter: providerAdapter,
+        runner,
+        now: clock(),
+        signal,
+        mode: 'watch',
+      });
 
   if (outcome.status === 'aborted' || signal?.aborted) {
     return abortWatch({
@@ -200,16 +212,6 @@ export async function watchManagedSession({
         reason: 'missing next_resume_at for cooldown watchdog',
         timestamp: clock().toISOString(),
         outcome,
-      });
-    }
-
-    const recovery = recoveryCheck({ repoRoot, config: currentConfig, now: clock() });
-    if (!recovery.ok) {
-      return abortWatch({
-        repoRoot,
-        reason: `recovery check failed: ${recovery.failures.join('; ')}`,
-        timestamp: clock().toISOString(),
-        outcome: { ...outcome, recovery },
       });
     }
 
@@ -285,6 +287,32 @@ export async function watchManagedSession({
       });
     }
 
+    if (!resumeState.next_resume_at) {
+      return abortWatch({
+        repoRoot,
+        reason: 'missing next_resume_at for cooldown watchdog',
+        timestamp: clock().toISOString(),
+        outcome,
+      });
+    }
+
+    const recovery = recoveryCheck({
+      repoRoot,
+      config: resumeConfig,
+      now: clock(),
+      mode: RECOVERY_MODES.COOLDOWN_RESUME,
+      state: resumeState,
+    });
+    lastRecovery = recovery;
+    if (!recovery.ok) {
+      return abortWatch({
+        repoRoot,
+        reason: `recovery check failed: ${recovery.failures.join('; ')}`,
+        timestamp: clock().toISOString(),
+        outcome: { ...outcome, recovery },
+      });
+    }
+
     const resumeCount = resumeState.watch_resume_count + 1;
     transitionState(
       repoRoot,
@@ -307,14 +335,18 @@ export async function watchManagedSession({
       sessionId: resumeState.current_session_id,
     });
 
-    outcome = await resumeManagedSession({
-      cwd: repoRoot,
-      adapter: providerAdapter,
-      runner,
-      now: clock(),
-      allowEarly: true,
-      signal,
-    });
+    outcome = {
+      ...(await resumeManagedSession({
+        cwd: repoRoot,
+        adapter: providerAdapter,
+        runner,
+        now: clock(),
+        allowEarly: true,
+        signal,
+      })),
+      adoptedCooldown: adoptingCooldown,
+      recovery: lastRecovery,
+    };
 
     if (outcome.status === 'aborted' || signal?.aborted) {
       return abortWatch({
@@ -367,7 +399,12 @@ export async function continueManagedSession({
     };
   }
 
-  const recovery = recoveryCheck({ repoRoot, config, now });
+  const recovery = recoveryCheck({
+    repoRoot,
+    config,
+    now,
+    mode: RECOVERY_MODES.STRICT_CONTINUATION,
+  });
   if (!recovery.ok) {
     const reason = `recovery check failed: ${recovery.failures.join('; ')}`;
     const failedState = transitionState(

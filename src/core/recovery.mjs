@@ -4,14 +4,34 @@ import { paths } from './files.mjs';
 import { runGit } from './git.mjs';
 
 const UNMERGED_STATUS = Object.freeze(['DD', 'AU', 'UD', 'UA', 'DU', 'AA', 'UU']);
+export const RECOVERY_MODES = Object.freeze({
+  STRICT_CONTINUATION: 'strict_continuation',
+  COOLDOWN_RESUME: 'cooldown_resume',
+});
 
-export function runRecoveryCheck({ repoRoot, config, now = new Date() }) {
+export function runRecoveryCheck({
+  repoRoot,
+  config,
+  now = new Date(),
+  mode = RECOVERY_MODES.STRICT_CONTINUATION,
+  state = null,
+} = {}) {
   const filePaths = paths(repoRoot);
   const failures = [];
-  const handoff = readRequiredText(filePaths.handoff, 'handoff', failures);
-  const next = readRequiredText(filePaths.next, 'next', failures);
+  const warnings = [];
+  const semanticIssues = mode === RECOVERY_MODES.COOLDOWN_RESUME ? warnings : failures;
+  const handoff = readRequiredText(filePaths.handoff, 'handoff', semanticIssues);
+  const next = readRequiredText(filePaths.next, 'next', semanticIssues);
   const gitStatus = runGit(['status', '--short'], repoRoot);
   const gitDiff = runGit(['diff', '--no-color'], repoRoot);
+
+  if (mode === RECOVERY_MODES.COOLDOWN_RESUME) {
+    if (!state) {
+      failures.push('missing state for cooldown recovery');
+    } else if (!state.current_session_id) {
+      failures.push('missing session id for cooldown recovery');
+    }
+  }
 
   if (gitStatus === null) {
     failures.push('git status failed');
@@ -24,23 +44,25 @@ export function runRecoveryCheck({ repoRoot, config, now = new Date() }) {
   }
 
   if (handoff && !isCompleteHandoff(handoff)) {
-    failures.push('.agent/HANDOFF.md is incomplete');
+    semanticIssues.push('.agent/HANDOFF.md is incomplete');
   }
 
   if (!extractNextAction(next)) {
-    failures.push('.agent/NEXT.md has no next action');
+    semanticIssues.push('.agent/NEXT.md has no next action');
   }
 
   if (config?.max_handoff_age_minutes > 0 && existsSync(filePaths.handoff)) {
     const ageMs = now.getTime() - statSync(filePaths.handoff).mtimeMs;
     if (ageMs > config.max_handoff_age_minutes * 60 * 1000) {
-      failures.push('.agent/HANDOFF.md is stale');
+      semanticIssues.push('.agent/HANDOFF.md is stale');
     }
   }
 
   return {
     ok: failures.length === 0,
     failures,
+    warnings,
+    mode,
     handoff,
     gitStatus: gitStatus ?? '',
     gitDiff: gitDiff ?? '',

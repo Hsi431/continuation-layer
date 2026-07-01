@@ -93,6 +93,12 @@ Reset provenance values:
 
 `cooldown_detected_fallback` means the provider did not expose a reset time and no usage-window anchor existed, so the supervisor used `cooldown_detected_at + 5h + buffer`.
 
+## Recovery Modes
+
+- `strict_continuation` is used for context handoff and child continuation. Missing, incomplete, or stale handoff state can fail recovery.
+- `cooldown_resume` is used for same-session cooldown resume. Missing or stale semantic handoff state is recorded as a warning, while missing session id, git conflicts, unreadable git status/diff, or invalid state remain failures.
+- If `continuity watch` starts while state is already `cooling_down`, it adopts that state and waits/resumes the same session instead of launching a new provider process.
+
 ## Phase 1 Implementation
 
 - `continuity init` writes the default file set and refuses to overwrite existing `.agent/config.json` or `.agent/state.json`.

@@ -135,6 +135,12 @@ continue from durable task state
 
 如果 provider 沒提供精確 reset time，Continuation Layer 會從 `usage_window_started_at + 5h + buffer` 估算。如果沒有 usage-window anchor，就 fallback 到 `cooldown_detected_at + 5h + buffer`，並把 provenance 標成 `cooldown_detected_fallback`。
 
+Cooldown resume 是 same-session recovery path。Semantic handoff stale 只會是 warning，不會阻止 resume，因為 provider 可能已經拒絕請求，而且 cooldown 等待本身就可能讓 handoff 超過一般 freshness gate。Recovery 會依賴同一個 session id、mechanical snapshot、git state、provider logs 和 resume prompt。
+
+Child continuation 仍維持 strict policy。Stale、missing 或 incomplete handoff 仍可阻止 child-session continuation 與 overnight automation。
+
+如果 watch 在 cooldown 等待期間被中斷，稍後再次執行 `continuity watch` 會接管既有 `cooling_down` state，等待既有 `next_resume_at`，然後 resume 同一個 session，不會重新 start provider task。
+
 ### 2. Context 快滿時，不直接相信壓縮摘要
 
 長任務最怕的是 context compaction 把錯的東西留下，把重要的東西壓掉。

@@ -78,6 +78,17 @@ Cooldown detection must write `.agent/AUTO_SNAPSHOT.md` with:
 
 Semantic handoff is optional and cannot be created after a provider rejects requests. If a fresh checkpoint or handoff already exists, resume prompts should read it. If it does not exist, cooldown recovery still has the mechanical snapshot but must not claim a semantic handoff was written.
 
+## Recovery Policy
+
+Recovery has two modes:
+
+- `strict_continuation`
+- `cooldown_resume`
+
+`strict_continuation` is used for context continuation and overnight child sessions. Missing handoff, stale handoff, missing next action, git conflicts, unreadable git status/diff, or invalid state can block continuation.
+
+`cooldown_resume` is used only for same-session cooldown resume. It still fails on missing session id, unreadable git status/diff, git conflicts, or invalid state. Missing handoff, stale handoff, incomplete handoff, and missing next action are warnings, not blockers. Cooldown recovery uses the same session id, mechanical snapshot, provider log, git status/diff, and existing handoff as context even when the semantic handoff is stale.
+
 ## Circuit Breakers
 
 Watch mode stops instead of looping forever when:
@@ -112,3 +123,5 @@ or restart the foreground watchdog:
 ```sh
 continuity watch
 ```
+
+When `continuity watch` starts and state is already `cooling_down` with `current_session_id` and `next_resume_at`, it adopts that cooldown. It does not start a new provider task. If `next_resume_at` is in the past, it resumes immediately. If the cooling-down state is missing the session id or resume time, watch aborts instead of starting a new provider process.

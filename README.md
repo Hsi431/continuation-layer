@@ -135,6 +135,12 @@ continue from durable task state
 
 If the provider does not expose an exact reset time, Continuation Layer estimates it from `usage_window_started_at + 5h + buffer`. If no anchor exists, it falls back to `cooldown_detected_at + 5h + buffer` and marks the provenance as `cooldown_detected_fallback`.
 
+Cooldown resume is a same-session recovery path. A stale semantic handoff is treated as a warning, not a blocker, because the provider may already be rejecting requests and the cooldown wait itself can make handoff age exceed the normal freshness gate. Recovery uses the same session id, mechanical snapshot, git state, provider logs, and resume prompt.
+
+Child continuation remains strict. A stale, missing, or incomplete handoff can still block child-session continuation and overnight automation.
+
+If watch is interrupted during cooldown, running `continuity watch` again adopts the existing `cooling_down` state, waits until the recorded `next_resume_at`, and resumes the same session instead of starting a new provider task.
+
 ### 2. Context pressure writes handoff before trusting compaction
 
 Long tasks are fragile when context compaction keeps the wrong details and drops the important ones.
