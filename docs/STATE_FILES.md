@@ -33,6 +33,7 @@ The `.agent` directory is durable task memory for the current repository.
 ## Mode Values
 
 - `normal`
+- `watch`
 - `cooldown_resume`
 - `context_handoff`
 - `overnight`
@@ -44,6 +45,12 @@ The `.agent` directory is durable task memory for the current repository.
 - `checkpoint_written`
 - `cooldown_detected`
 - `cooldown_resumed`
+- `watch_started`
+- `watch_sleeping`
+- `watch_resuming`
+- `watch_stopped`
+- `watch_aborted`
+- `watch_limit_reached`
 - `context_pressure_detected`
 - `compaction_recorded`
 - `handoff_written`
@@ -61,6 +68,30 @@ The `.agent` directory is durable task memory for the current repository.
 - `block_auto_compact` must not attempt to bypass provider context management. If compaction still occurs, `PostCompact` records the risk and recovery prefers `.agent` files plus git state.
 - `overnight_mode` and `auto_continue_after_handoff` are both false by default.
 - Automatic continuation requires both `overnight_mode` and `auto_continue_after_handoff` to be true.
+- `max_cooldown_resumes` defaults to `3`.
+- `max_watch_hours` defaults to `18`.
+- `watch_heartbeat_minutes` defaults to `30`.
+
+## Cooldown Watchdog State
+
+- `usage_window_started_at` records the local usage-window anchor used only when the provider does not expose reset time.
+- `cooldown_detected_at` records when supervised stdout/stderr matched a cooldown.
+- `reset_time_provenance` records how `next_resume_at` was calculated.
+- `watch_started_at` records the current foreground watchdog start time.
+- `watch_resume_count` records automatic same-session resumes in the current watch run.
+- `last_watch_event` records the latest watch event.
+
+Reset provenance values:
+
+- `provider_reset_at`
+- `provider_relative`
+- `provider_epoch`
+- `usage_window_anchor`
+- `cooldown_detected_fallback`
+- `manual_override`
+- `unknown`
+
+`cooldown_detected_fallback` means the provider did not expose a reset time and no usage-window anchor existed, so the supervisor used `cooldown_detected_at + 5h + buffer`.
 
 ## Phase 1 Implementation
 

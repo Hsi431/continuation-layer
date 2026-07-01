@@ -326,11 +326,19 @@ Consequence:
 `;
 }
 
-export function formatSnapshot({ timestamp, branch, gitStatus, gitDiffStat, state }) {
+export function formatSnapshot({
+  timestamp,
+  branch,
+  gitStatus,
+  gitDiffStat,
+  state,
+  logPath = null,
+}) {
   return `# Auto Snapshot
 
 timestamp: ${timestamp}
 branch: ${branch}
+log path: ${logPath ?? 'none'}
 git status:
 ${indentBlock(gitStatus)}
 git diff stat:
@@ -338,6 +346,15 @@ ${indentBlock(gitDiffStat)}
 provider: ${state.provider}
 session id: ${state.current_session_id ?? 'none'}
 parent session id: ${state.parent_session_id ?? 'none'}
+status: ${state.status}
+mode: ${state.mode}
+cooldown detected at: ${state.cooldown_detected_at ?? 'none'}
+next resume at: ${state.next_resume_at ?? 'none'}
+reset time provenance: ${state.reset_time_provenance ?? 'none'}
+usage window started at: ${state.usage_window_started_at ?? 'none'}
+watch started at: ${state.watch_started_at ?? 'none'}
+watch resume count: ${state.watch_resume_count ?? 0}
+last watch event: ${state.last_watch_event ?? 'none'}
 last event: ${state.last_event}
 error reason if any: ${state.cooldown_reason ?? 'none'}
 `;

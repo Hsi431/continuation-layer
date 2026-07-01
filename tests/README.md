@@ -25,6 +25,8 @@ Current coverage:
 - simulated cooldown transition to `cooling_down`
 - manual resume waiting before reset
 - same-session resume after cooldown
+- watchdog wait loop and automatic same-session resume
+- watchdog circuit breakers and abort behavior
 - recovery checks over handoff, next action, git status, and git diff
 - context handoff and `codex fork` child continuation command construction
 - Codex hook entrypoint behavior for session start, stop, pre-compact, and post-compact

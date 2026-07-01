@@ -9,5 +9,8 @@
   "require_clean_recovery_check": true,
   "checkpoint_policy": "stage_boundary",
   "max_handoff_age_minutes": 120,
-  "log_retention_days": 14
+  "log_retention_days": 14,
+  "max_cooldown_resumes": 3,
+  "max_watch_hours": 18,
+  "watch_heartbeat_minutes": 30
 }

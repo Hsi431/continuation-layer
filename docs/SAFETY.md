@@ -6,6 +6,7 @@
 - Do not rotate accounts.
 - Do not fake reset times.
 - Do not sleep for hours inside hooks.
+- Do not describe manual resume as automatic watchdog behavior.
 - Do not continue automatically from incomplete handoff state.
 - Do not treat compacted transcript summaries as the only source of truth.
 - Do not use compaction hooks to bypass provider context management.
@@ -26,6 +27,19 @@
 - Recovery check failure stops continuation before the provider command is launched.
 - Overnight auto-continuation requires explicit `overnight_mode` and `auto_continue_after_handoff`.
 - New tasks must archive old active handoff state before fresh handoff files are written.
+- Watch mode waits in the foreground supervisor, not in provider hooks.
+- Ctrl-C must preserve watchdog state and must not mark the task failed.
+- Continuation Layer can only monitor provider processes it starts.
+
+## Cooldown Watchdog Guardrails
+
+- Prefer provider reset timestamps over local estimates.
+- Use provider relative reset durations before local usage-window anchors.
+- Use `usage_window_started_at + 5h + buffer` only when provider reset data is missing.
+- Use `cooldown_detected_at + 5h + buffer` only as a conservative fallback and label it `cooldown_detected_fallback`.
+- Stop watch mode when `max_cooldown_resumes` or `max_watch_hours` is reached.
+- Stop watch mode if the session id is missing, state validation fails, recovery checks fail, or the provider fails without cooldown.
+- Do not claim cooldown recovery wrote a semantic handoff after the provider rejected requests; rely on the latest existing handoff plus the mechanical snapshot.
 
 ## Overnight Mode Guardrails
 

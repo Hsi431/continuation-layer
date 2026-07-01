@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { codexAdapter, nextResumeAt, parseResetTime } from '../src/providers/codex.mjs';
+import {
+  codexAdapter,
+  nextResumeAt,
+  parseResetTime,
+  parseResetTimeDetails,
+} from '../src/providers/codex.mjs';
 
 test('codex adapter builds start, resume, and fork commands', () => {
   assert.deepEqual(
@@ -75,6 +80,23 @@ test('reset parser handles iso, epoch, and relative reset times', () => {
   assert.equal(
     parseResetTime('try again in 2 hours 3 minutes', now).toISOString(),
     '2026-06-29T02:03:00.000Z',
+  );
+});
+
+test('reset parser reports reset provenance', () => {
+  const now = new Date('2026-06-29T00:00:00.000Z');
+
+  assert.equal(
+    parseResetTimeDetails('try again at 2026-06-29T01:02:03Z', now).provenance,
+    'provider_reset_at',
+  );
+  assert.equal(
+    parseResetTimeDetails('{"resets_at": 1782694800}', now).provenance,
+    'provider_epoch',
+  );
+  assert.equal(
+    parseResetTimeDetails('retry after 37 minutes', now).provenance,
+    'provider_relative',
   );
 });
 

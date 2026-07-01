@@ -3,6 +3,7 @@ import {
   EVENT_VALUES,
   MODE_VALUES,
   PROVIDER_VALUES,
+  RESET_TIME_PROVENANCE_VALUES,
   STATUS_VALUES,
 } from './constants.mjs';
 
@@ -52,6 +53,9 @@ export function validateConfig(config) {
     'cooldown_buffer_seconds',
     'max_handoff_age_minutes',
     'log_retention_days',
+    'max_cooldown_resumes',
+    'max_watch_hours',
+    'watch_heartbeat_minutes',
   ]) {
     if (!Number.isInteger(config[key]) || config[key] < 0) {
       pushTypeError(errors, 'config', key, 'a non-negative integer');
@@ -118,10 +122,19 @@ export function validateState(state) {
     'parent_session_id',
     'next_resume_at',
     'cooldown_reason',
+    'usage_window_started_at',
+    'cooldown_detected_at',
+    'reset_time_provenance',
+    'watch_started_at',
+    'last_watch_event',
   ]) {
     if (state[key] !== null && typeof state[key] !== 'string') {
       pushTypeError(errors, 'state', key, 'a string or null');
     }
+  }
+
+  if (!Number.isInteger(state.watch_resume_count) || state.watch_resume_count < 0) {
+    pushTypeError(errors, 'state', 'watch_resume_count', 'a non-negative integer');
   }
 
   if (!isIsoDate(state.created_at)) {
@@ -134,6 +147,25 @@ export function validateState(state) {
 
   if (state.next_resume_at !== null && !isIsoDate(state.next_resume_at)) {
     pushTypeError(errors, 'state', 'next_resume_at', 'an ISO timestamp or null');
+  }
+
+  for (const key of ['usage_window_started_at', 'cooldown_detected_at', 'watch_started_at']) {
+    if (state[key] !== null && !isIsoDate(state[key])) {
+      pushTypeError(errors, 'state', key, 'an ISO timestamp or null');
+    }
+  }
+
+  if (
+    state.reset_time_provenance !== null &&
+    !RESET_TIME_PROVENANCE_VALUES.includes(state.reset_time_provenance)
+  ) {
+    errors.push(
+      `state.reset_time_provenance must be one of: ${RESET_TIME_PROVENANCE_VALUES.join(', ')}`,
+    );
+  }
+
+  if (state.last_watch_event !== null && !EVENT_VALUES.includes(state.last_watch_event)) {
+    errors.push(`state.last_watch_event must be one of: ${EVENT_VALUES.join(', ')}`);
   }
 
   return errors;

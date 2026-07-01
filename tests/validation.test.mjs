@@ -14,10 +14,12 @@ test('config validation rejects bad types', () => {
     ...DEFAULT_CONFIG,
     overnight_mode: 'false',
     cooldown_default_seconds: -1,
+    max_cooldown_resumes: -1,
   });
 
   assert.match(errors.join('\n'), /overnight_mode/);
   assert.match(errors.join('\n'), /cooldown_default_seconds/);
+  assert.match(errors.join('\n'), /max_cooldown_resumes/);
 });
 
 test('initial state validates', () => {
@@ -40,4 +42,18 @@ test('state validation rejects unknown status', () => {
   });
 
   assert.match(validateState({ ...state, status: 'paused' }).join('\n'), /state.status/);
+});
+
+test('state validation rejects unknown reset provenance', () => {
+  const state = makeInitialState({
+    repoRoot: '/tmp/repo',
+    provider: 'codex',
+    taskId: 'task-1',
+    timestamp: '2026-06-29T08:00:00.000Z',
+  });
+
+  assert.match(
+    validateState({ ...state, reset_time_provenance: 'guessed' }).join('\n'),
+    /state.reset_time_provenance/,
+  );
 });

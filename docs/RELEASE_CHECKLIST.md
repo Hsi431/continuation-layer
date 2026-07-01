@@ -25,6 +25,8 @@ npm run pack:check
 - Quick Start works from a fresh git repo.
 - Install section lists Node >= 20, Codex CLI, and git requirements.
 - Safety boundaries still say no account rotation, no provider-limit bypass, no long hook sleeps, and no auto commit.
+- README recommends `continuity watch` for long-running tasks and labels `continuity start` as manual one-shot mode.
+- `docs/COOLDOWN_WATCHDOG.md` documents reset provenance, direct Codex limitations, snapshot policy, circuit breakers, and Ctrl-C behavior.
 - Known limitations clearly label Claude Code as future/v1.
 - README does not contain personal absolute paths.
 - `docs/DOGFOOD.md` matches the current CLI.

@@ -62,6 +62,10 @@ export const codexAdapter = Object.freeze({
     return parseResetTime(text, now);
   },
 
+  parseResetTimeDetails(text, now = new Date()) {
+    return parseResetTimeDetails(text, now);
+  },
+
   extractSessionId(text) {
     return extractSessionId(text);
   },
@@ -91,28 +95,41 @@ export const codexAdapter = Object.freeze({
 });
 
 export function parseResetTime(text, now = new Date()) {
+  return parseResetTimeDetails(text, now)?.resetAt ?? null;
+}
+
+export function parseResetTimeDetails(text, now = new Date()) {
   const source = String(text ?? '');
   const epoch = parseEpochReset(source);
   if (epoch) {
-    return epoch;
+    return {
+      resetAt: epoch,
+      provenance: 'provider_epoch',
+    };
   }
 
-  const iso = source.match(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\b/);
-  if (iso) {
-    return new Date(iso[0]);
+  const explicit = parseExplicitResetAt(source);
+  if (explicit) {
+    return {
+      resetAt: explicit,
+      provenance: 'provider_reset_at',
+    };
   }
 
   const relative = parseRelativeReset(source);
   if (relative !== null) {
-    return new Date(now.getTime() + relative * 1000);
+    return {
+      resetAt: new Date(now.getTime() + relative * 1000),
+      provenance: 'provider_relative',
+    };
   }
 
   return null;
 }
 
 export function nextResumeAt({ text, now = new Date(), defaultSeconds, bufferSeconds }) {
-  const parsed = parseResetTime(text, now);
-  const base = parsed ?? new Date(now.getTime() + defaultSeconds * 1000);
+  const parsed = parseResetTimeDetails(text, now);
+  const base = parsed?.resetAt ?? new Date(now.getTime() + defaultSeconds * 1000);
   return new Date(base.getTime() + bufferSeconds * 1000);
 }
 
@@ -140,6 +157,22 @@ function parseEpochReset(source) {
   const raw = Number(match[1]);
   const millis = raw > 9_999_999_999 ? raw : raw * 1000;
   return new Date(millis);
+}
+
+function parseExplicitResetAt(source) {
+  const patterns = [
+    /"?resets?_at"?\s*[:=]\s*"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)"/i,
+    /(?:reset|resets|try again|retry|available)\s+(?:at|on)\s+(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = source.match(pattern);
+    if (match) {
+      return new Date(match[1]);
+    }
+  }
+
+  return null;
 }
 
 function parseRelativeReset(source) {

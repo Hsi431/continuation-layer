@@ -28,7 +28,7 @@ It works through durable state that is local, inspectable, traceable, and recove
 
 | Before                                         | After                                                     |
 | ---------------------------------------------- | --------------------------------------------------------- |
-| Cooldown walls stop the task mid-run           | Supervisor records cooldown state and legal resume time   |
+| Cooldown walls stop the task mid-run           | Watch mode waits for reset and resumes the same session   |
 | Context compaction can drop key decisions      | Handoff is written before continuation                    |
 | Resume can look connected but lose task intent | `.agent` durable state is read before continuing          |
 | New sessions rescan the repo and burn tokens   | Child sessions recover from handoff, git status, and diff |
@@ -37,14 +37,14 @@ It works through durable state that is local, inspectable, traceable, and recove
 ## Highlights
 
 - Codex-first v0.1 preview.
-- Same-session resume state after recorded cooldown reset.
+- Long-lived cooldown watchdog with same-session resume.
 - Handoff before continuation under context pressure.
 - Child continuation uses `codex fork`.
 - `.agent` durable state is the source of truth.
 - Parent/child session chain is traceable.
 - Overnight mode is off by default and must be explicitly enabled.
 - Failed recovery checks stop automation.
-- Supervisor owns cooldown detection and resume state.
+- Supervisor owns cooldown detection, wait, and same-session resume.
 - Hooks do short lifecycle work and do not sleep for hours.
 - Task completion / archive / cleanup is implemented.
 - No account rotation.
@@ -71,6 +71,8 @@ It does one thing:
 ```text
 Make long tasks pause legally, hand off explicitly, and recover safely.
 ```
+
+Watch mode waits for provider reset windows. It does not bypass limits, rotate accounts, fake reset times, or sleep inside hooks.
 
 ## The Flow
 
@@ -111,10 +113,11 @@ It:
 
 1. Records a failure snapshot.
 2. Marks the task as cooling down.
-3. Parses the reset time when available, or uses a conservative fallback.
+3. Parses the reset time when available, or uses a provenance-labeled fallback.
 4. Records `next_resume_at` as reset plus buffer.
-5. Uses `codex resume` / `codex exec resume` to return to the same session when resume is invoked after reset.
-6. Reads `.agent` state and git state before continuing.
+5. In watch mode, waits in the foreground supervisor until reset.
+6. Uses `codex resume` / `codex exec resume` to return to the same session.
+7. Reads `.agent` state and git state before continuing.
 
 ```text
 Cooldown wall
@@ -123,10 +126,14 @@ record failure
   ↓
 record legal resume time
   ↓
+watch waits through reset window
+  ↓
 resume same session after reset
   ↓
 continue from durable task state
 ```
+
+If the provider does not expose an exact reset time, Continuation Layer estimates it from `usage_window_started_at + 5h + buffer`. If no anchor exists, it falls back to `cooldown_detected_at + 5h + buffer` and marks the provenance as `cooldown_detected_fallback`.
 
 ### 2. Context pressure writes handoff before trusting compaction
 
@@ -265,7 +272,24 @@ continuity status
 continuity status --json
 ```
 
-Start Codex under supervisor:
+## Recommended: Watch mode
+
+```sh
+continuity watch "finish this task"
+```
+
+Watch mode keeps the supervisor alive, waits through cooldown windows, and automatically resumes the same Codex session.
+
+## Manual mode
+
+```sh
+continuity start "finish this task"
+continuity resume
+```
+
+Manual mode detects cooldowns, records `next_resume_at`, then exits. It does not keep a process alive.
+
+Start Codex under the manual one-shot supervisor:
 
 ```sh
 continuity start "refactor the auth module safely"
@@ -310,6 +334,7 @@ Dry-run provider commands without launching Codex:
 
 ```sh
 continuity start --dry-run "refactor the auth module safely"
+continuity watch --dry-run "refactor the auth module safely"
 continuity resume --dry-run
 continuity continue --dry-run
 ```
@@ -346,7 +371,7 @@ Completed:
 
 - Durable `.agent` state and validation
 - Codex adapter and supervisor
-- Cooldown detection and same-session resume state
+- Cooldown watchdog and same-session automatic resume
 - Codex continuity skill and plugin package
 - Codex lifecycle hooks
 - Context handoff
@@ -359,6 +384,7 @@ Completed:
 - v0.1 is Codex-first.
 - Claude Code is documented as a future v1 provider path, not a first-class runtime yet.
 - Provider CLI behavior and private session storage can change; private session storage is diagnostics only, not core state.
+- Continuation Layer can only monitor provider processes it starts. If you run `codex` directly, cooldown events will not be captured.
 - The project is tested mainly through local unit/integration tests and dogfooding flows.
 - Context continuation asks for user confirmation unless overnight mode is explicitly enabled.
 - Real provider smoke tests should stay opt-in and are not part of CI.
@@ -368,7 +394,7 @@ Completed:
 ### v0.1
 
 - Codex CLI as the primary provider.
-- Safe cooldown resume state.
+- Safe cooldown watchdog.
 - Handoff-before-continuation.
 - Guarded overnight mode.
 - Completion / archive / cleanup.

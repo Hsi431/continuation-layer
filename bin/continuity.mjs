@@ -14,6 +14,7 @@ import {
   continueManagedSession,
   resumeManagedSession,
   startManagedSession,
+  watchManagedSession,
 } from '../src/supervisor/supervisor.mjs';
 
 function parseArgs(argv) {
@@ -53,7 +54,8 @@ Commands:
   init                 Initialize .agent in the current git repo
   status [--json]      Show current durable state
   snapshot             Write .agent/AUTO_SNAPSHOT.md
-  start [prompt]       Start provider CLI under supervisor
+  watch [prompt]       Start provider CLI under long-lived cooldown watchdog
+  start [prompt]       Manual one-shot provider run under supervisor
   resume               Resume a cooling_down task under supervisor
   continue             Write handoff, then start child continuation after confirmation
   overnight enable     Enable overnight auto-continuation
@@ -65,9 +67,12 @@ Options:
   --task-id <id>       Task id for init
   --provider <name>    Provider for init; default codex
   --json               Machine-readable status output
-  --dry-run            Print provider command without executing start/resume/continue
+  --dry-run            Print provider command without executing start/watch/resume/continue
   --allow-early        Resume before next_resume_at
   --yes                Confirm child continuation startup
+
+Continuation Layer can only monitor provider processes started by continuity start or continuity watch.
+If you run codex directly, cooldown events cannot be captured or resumed automatically.
 `);
 }
 
@@ -80,9 +85,23 @@ function printStatus(status) {
   console.log(`parent session: ${status.parentSession ?? 'none'}`);
   console.log(`current handoff: ${status.currentHandoff}`);
   console.log(`next action: ${status.nextAction ?? 'none'}`);
+  console.log(`next resume at: ${status.nextResumeAt ?? 'none'}`);
+  console.log(`cooldown detected at: ${status.cooldownDetectedAt ?? 'none'}`);
+  console.log(`usage window started at: ${status.usageWindowStartedAt ?? 'none'}`);
+  console.log(`reset time provenance: ${status.resetTimeProvenance ?? 'none'}`);
+  console.log(`watch started at: ${status.watchStartedAt ?? 'none'}`);
+  console.log(`watch resume count: ${status.watchResumeCount}`);
+  console.log(`last watch event: ${status.lastWatchEvent ?? 'none'}`);
   console.log(`overnight mode: ${status.overnightMode}`);
   console.log(`auto continue after handoff: ${status.autoContinueAfterHandoff}`);
   console.log(`cooldown countdown seconds: ${status.cooldownSeconds ?? 'none'}`);
+  console.log(
+    `watchdog running: ${
+      status.watchdogRunning === 'unknown_no_lock'
+        ? 'unknown (no lock/pid tracking)'
+        : status.watchdogRunning
+    }`,
+  );
 }
 
 function printCommandSpec(commandSpec) {
@@ -97,7 +116,11 @@ function printSupervisorResult(result) {
         exitCode: result.result?.exitCode ?? null,
         logPath: result.result?.logPath ?? null,
         nextResumeAt: result.nextResumeAt ?? null,
+        resetTimeProvenance: result.resetTimeProvenance ?? null,
         waiting: result.waiting ?? false,
+        watchStopped: result.watchStopped ?? false,
+        limitReached: result.limitReached ?? false,
+        aborted: result.aborted ?? false,
         confirmationRequired: result.confirmationRequired ?? false,
         continuationStarted: result.continuationStarted ?? false,
         autoContinued: result.autoContinued ?? false,
@@ -108,6 +131,51 @@ function printSupervisorResult(result) {
       2,
     ),
   );
+}
+
+function printWatchEvent(event) {
+  if (event.type === 'cooldown_detected') {
+    console.log('Cooldown detected.');
+    console.log(`Reset provenance: ${event.resetTimeProvenance ?? 'unknown'}`);
+    console.log(`Next resume at: ${event.nextResumeAt ?? 'unknown'}`);
+    console.log(`Waiting: ${formatDuration(event.waitMs ?? 0)}`);
+  } else if (event.type === 'heartbeat') {
+    console.log(`Waiting: ${formatDuration(event.remainingMs ?? 0)} remaining`);
+  } else if (event.type === 'watch_resuming') {
+    console.log(`Resuming same session: ${event.sessionId}`);
+  }
+}
+
+function formatDuration(milliseconds) {
+  const totalMinutes = Math.ceil(Math.max(0, milliseconds) / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
+function makeAbortSignal() {
+  const controller = new AbortController();
+  const onSigint = () => controller.abort();
+  process.once('SIGINT', onSigint);
+
+  return {
+    signal: controller.signal,
+    dispose() {
+      process.removeListener('SIGINT', onSigint);
+    },
+  };
+}
+
+function printAbortGuidance(result) {
+  if (!result.aborted) {
+    return;
+  }
+
+  console.log('Watchdog aborted. State was preserved.');
+  console.log('You can resume later with:');
+  console.log('  continuity resume');
+  console.log('or restart the watchdog with:');
+  console.log('  continuity watch');
 }
 
 function printOvernightResult(result) {
@@ -126,7 +194,7 @@ function dryRunCommand(kind, prompt) {
   const { config, state } = loadAgentState(repoRoot);
   const adapter = getProviderAdapter(config.provider);
 
-  if (kind === 'start') {
+  if (kind === 'start' || kind === 'watch') {
     return adapter.startSessionCommand({ repoRoot, prompt, nonInteractive: true });
   }
 
@@ -221,6 +289,27 @@ async function main() {
     }
 
     printSupervisorResult(await startManagedSession({ prompt: options.prompt }));
+    return;
+  }
+
+  if (command === 'watch') {
+    if (options.dryRun) {
+      printCommandSpec(dryRunCommand('watch', options.prompt));
+      return;
+    }
+
+    const abort = makeAbortSignal();
+    try {
+      const result = await watchManagedSession({
+        prompt: options.prompt,
+        signal: abort.signal,
+        onEvent: printWatchEvent,
+      });
+      printAbortGuidance(result);
+      printSupervisorResult(result);
+    } finally {
+      abort.dispose();
+    }
     return;
   }
 

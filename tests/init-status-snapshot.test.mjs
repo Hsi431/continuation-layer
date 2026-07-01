@@ -127,6 +127,14 @@ test('status reads next action and core state', () => {
   assert.equal(status.currentHandoff, '.agent/HANDOFF.md');
   assert.equal(status.overnightMode, false);
   assert.equal(status.nextAction, 'Define the next action for this task.');
+  assert.equal(status.nextResumeAt, null);
+  assert.equal(status.cooldownDetectedAt, null);
+  assert.equal(status.usageWindowStartedAt, null);
+  assert.equal(status.resetTimeProvenance, null);
+  assert.equal(status.watchStartedAt, null);
+  assert.equal(status.watchResumeCount, 0);
+  assert.equal(status.lastWatchEvent, null);
+  assert.equal(status.watchdogRunning, 'unknown_no_lock');
 });
 
 test('overnight mode is off by default and can be toggled with config/state sync', () => {

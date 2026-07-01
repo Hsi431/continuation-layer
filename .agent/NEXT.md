@@ -2,19 +2,20 @@
 
 ## Next Action
 
-Optional v0.1.0 tag/release or new-session plugin test.
+Review and commit the cooldown watchdog blocker fix, then rerun CI before resuming v0.1 release prep.
 
 ## Target Files
 
-- `.agent/HANDOFF.md`
-- `.agent/NEXT.md`
+- `src/supervisor/supervisor.mjs`
+- `bin/continuity.mjs`
+- `docs/COOLDOWN_WATCHDOG.md`
+- `tests/supervisor.test.mjs`
 
 ## Constraints
 
-- Do not create tags/releases unless explicitly requested.
-- New Codex sessions are required to pick up newly installed plugin hooks/skills.
+- Do not create tags/releases until watchdog changes are reviewed and CI is green.
 - Keep `.agent` as a sanitized dogfood example.
-- Do not add runtime features.
+- Do not broaden scope beyond cooldown watchdog follow-up fixes.
 
 ## First Command To Inspect
 

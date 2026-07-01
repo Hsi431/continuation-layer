@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -9,9 +9,11 @@ import { initAgent, setOvernightMode } from '../src/core/agent-state.mjs';
 import { codexAdapter } from '../src/providers/codex.mjs';
 import { runCommand } from '../src/supervisor/process-runner.mjs';
 import {
+  calculateNextResumePlan,
   continueManagedSession,
   resumeManagedSession,
   startManagedSession,
+  watchManagedSession,
 } from '../src/supervisor/supervisor.mjs';
 
 function makeRepo() {
@@ -23,6 +25,20 @@ function makeRepo() {
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+function writeJson(path, value) {
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function okRecovery() {
+  return {
+    ok: true,
+    failures: [],
+    handoff: '',
+    gitStatus: '',
+    gitDiff: '',
+  };
 }
 
 test('process runner captures stdout, stderr, exit code, and logs', async () => {
@@ -71,8 +87,18 @@ test('supervisor transitions simulated cooldown into cooling_down state', async 
   assert.equal(state.mode, 'cooldown_resume');
   assert.equal(state.current_session_id, 'sess-1');
   assert.equal(state.next_resume_at, '2026-06-29T00:07:00.000Z');
+  assert.equal(state.cooldown_detected_at, '2026-06-29T00:00:00.000Z');
+  assert.equal(state.reset_time_provenance, 'provider_relative');
   assert.equal(state.last_event, 'cooldown_detected');
-  assert.match(readFileSync(join(repo, '.agent', 'AUTO_SNAPSHOT.md'), 'utf8'), /cooldown_detected/);
+  const snapshot = readFileSync(join(repo, '.agent', 'AUTO_SNAPSHOT.md'), 'utf8');
+  assert.match(snapshot, /cooldown_detected/);
+  assert.match(
+    snapshot,
+    new RegExp(
+      `log path: ${join(repo, '.agent', 'logs', 'fake.log').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
+    ),
+  );
+  assert.match(snapshot, /reset time provenance: provider_relative/);
 });
 
 test('supervisor start uses non-interactive codex exec command', async () => {
@@ -129,6 +155,307 @@ test('supervisor uses fallback cooldown when reset time is missing', async () =>
     readJson(join(repo, '.agent', 'state.json')).next_resume_at,
     '2026-06-29T05:05:00.000Z',
   );
+  assert.equal(
+    readJson(join(repo, '.agent', 'state.json')).reset_time_provenance,
+    'cooldown_detected_fallback',
+  );
+});
+
+test('reset plan uses provider epoch before local anchors', () => {
+  const now = new Date('2026-06-29T00:00:00.000Z');
+
+  const plan = calculateNextResumePlan({
+    adapter: codexAdapter,
+    text: '{"resets_at": 1782694800}',
+    now,
+    defaultSeconds: 18000,
+    bufferSeconds: 300,
+    usageWindowStartedAt: '2026-06-28T20:00:00.000Z',
+    cooldownDetectedAt: now.toISOString(),
+  });
+
+  assert.equal(plan.nextResumeAt.toISOString(), '2026-06-29T01:05:00.000Z');
+  assert.equal(plan.resetTimeProvenance, 'provider_epoch');
+});
+
+test('reset plan uses usage window anchor when provider gives no reset', () => {
+  const now = new Date('2026-06-29T01:00:00.000Z');
+
+  const plan = calculateNextResumePlan({
+    adapter: codexAdapter,
+    text: 'usage limit reached',
+    now,
+    defaultSeconds: 18000,
+    bufferSeconds: 300,
+    usageWindowStartedAt: '2026-06-29T00:00:00.000Z',
+    cooldownDetectedAt: now.toISOString(),
+  });
+
+  assert.equal(plan.nextResumeAt.toISOString(), '2026-06-29T05:05:00.000Z');
+  assert.equal(plan.resetTimeProvenance, 'usage_window_anchor');
+});
+
+test('watch waits through cooldown and resumes the same session automatically', async () => {
+  const repo = makeRepo();
+  let currentMs = Date.parse('2026-06-29T00:00:00.000Z');
+  const sleeps = [];
+  const commands = [];
+  const runner = async (spec) => {
+    commands.push(spec);
+    if (commands.length === 1) {
+      return {
+        exitCode: 1,
+        signal: null,
+        stdout: 'session_id: sess-watch\n429 rate limit reached; try again in 2 minutes\n',
+        stderr: '',
+        logPath: join(repo, '.agent', 'logs', 'cooldown.log'),
+      };
+    }
+
+    return {
+      exitCode: 0,
+      signal: null,
+      stdout: 'session_id: sess-watch\n',
+      stderr: '',
+      logPath: join(repo, '.agent', 'logs', 'resume.log'),
+    };
+  };
+
+  const result = await watchManagedSession({
+    cwd: repo,
+    adapter: codexAdapter,
+    runner,
+    clock: () => new Date(currentMs),
+    sleep: async (ms) => {
+      sleeps.push(ms);
+      currentMs += ms;
+    },
+    recoveryCheck: okRecovery,
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map(JSON.parse);
+
+  assert.equal(result.status, 'checkpointed');
+  assert.equal(commands.length, 2);
+  assert.deepEqual(commands[1].args.slice(0, 5), ['exec', '-C', repo, 'resume', 'sess-watch']);
+  assert.deepEqual(sleeps, [7 * 60 * 1000]);
+  assert.equal(state.status, 'checkpointed');
+  assert.equal(state.watch_resume_count, 1);
+  assert.equal(state.last_watch_event, 'watch_stopped');
+  assert.equal(state.usage_window_started_at, '2026-06-29T00:00:00.000Z');
+  assert.equal(
+    sessions.some((event) => event.event === 'watch_sleeping'),
+    true,
+  );
+  assert.equal(
+    sessions.some((event) => event.event === 'watch_resuming'),
+    true,
+  );
+});
+
+test('watch immediately resumes when next_resume_at is already past', async () => {
+  const repo = makeRepo();
+  const currentMs = Date.parse('2026-06-29T00:10:00.000Z');
+  let calls = 0;
+  let slept = false;
+
+  await watchManagedSession({
+    cwd: repo,
+    adapter: codexAdapter,
+    clock: () => new Date(currentMs),
+    sleep: async () => {
+      slept = true;
+    },
+    recoveryCheck: okRecovery,
+    runner: async () => {
+      calls += 1;
+      return calls === 1
+        ? {
+            exitCode: 1,
+            signal: null,
+            stdout: 'session_id: sess-past\ntry again at 2026-06-29T00:00:00Z\n',
+            stderr: '',
+            logPath: null,
+          }
+        : {
+            exitCode: 0,
+            signal: null,
+            stdout: 'session_id: sess-past\n',
+            stderr: '',
+            logPath: null,
+          };
+    },
+  });
+
+  assert.equal(calls, 2);
+  assert.equal(slept, false);
+});
+
+test('watch repeats when automatic resume hits another cooldown', async () => {
+  const repo = makeRepo();
+  let currentMs = Date.parse('2026-06-29T00:00:00.000Z');
+  let calls = 0;
+
+  const result = await watchManagedSession({
+    cwd: repo,
+    adapter: codexAdapter,
+    clock: () => new Date(currentMs),
+    sleep: async (ms) => {
+      currentMs += ms;
+    },
+    recoveryCheck: okRecovery,
+    runner: async () => {
+      calls += 1;
+      if (calls < 3) {
+        return {
+          exitCode: 1,
+          signal: null,
+          stdout: 'session_id: sess-repeat\n429 rate limit reached; try again in 1 minute\n',
+          stderr: '',
+          logPath: null,
+        };
+      }
+
+      return {
+        exitCode: 0,
+        signal: null,
+        stdout: 'session_id: sess-repeat\n',
+        stderr: '',
+        logPath: null,
+      };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.equal(result.status, 'checkpointed');
+  assert.equal(calls, 3);
+  assert.equal(state.watch_resume_count, 2);
+});
+
+test('watch stops when max cooldown resumes is reached', async () => {
+  const repo = makeRepo();
+  const configPath = join(repo, '.agent', 'config.json');
+  writeJson(configPath, { ...readJson(configPath), max_cooldown_resumes: 1 });
+  let currentMs = Date.parse('2026-06-29T00:00:00.000Z');
+  let calls = 0;
+
+  const result = await watchManagedSession({
+    cwd: repo,
+    adapter: codexAdapter,
+    clock: () => new Date(currentMs),
+    sleep: async (ms) => {
+      currentMs += ms;
+    },
+    recoveryCheck: okRecovery,
+    runner: async () => {
+      calls += 1;
+      return {
+        exitCode: 1,
+        signal: null,
+        stdout: 'session_id: sess-limit\n429 rate limit reached; try again in 1 minute\n',
+        stderr: '',
+        logPath: null,
+      };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.equal(result.status, 'watch_limit_reached');
+  assert.equal(calls, 2);
+  assert.equal(state.status, 'cooling_down');
+  assert.equal(state.last_watch_event, 'watch_limit_reached');
+});
+
+test('watch stops when max watch hours is exceeded', async () => {
+  const repo = makeRepo();
+  const configPath = join(repo, '.agent', 'config.json');
+  writeJson(configPath, { ...readJson(configPath), max_watch_hours: 1 });
+  let currentMs = Date.parse('2026-06-29T00:00:00.000Z');
+  let calls = 0;
+
+  const result = await watchManagedSession({
+    cwd: repo,
+    adapter: codexAdapter,
+    clock: () => new Date(currentMs),
+    sleep: async (ms) => {
+      currentMs += ms;
+    },
+    recoveryCheck: okRecovery,
+    runner: async () => {
+      calls += 1;
+      return {
+        exitCode: 1,
+        signal: null,
+        stdout: 'session_id: sess-hours\n429 rate limit reached; try again in 2 hours\n',
+        stderr: '',
+        logPath: null,
+      };
+    },
+  });
+
+  assert.equal(result.status, 'watch_limit_reached');
+  assert.equal(calls, 1);
+});
+
+test('watch aborts when cooldown has no session id for same-session resume', async () => {
+  const repo = makeRepo();
+  let calls = 0;
+
+  const result = await watchManagedSession({
+    cwd: repo,
+    adapter: codexAdapter,
+    clock: () => new Date('2026-06-29T00:00:00.000Z'),
+    recoveryCheck: okRecovery,
+    runner: async () => {
+      calls += 1;
+      return {
+        exitCode: 1,
+        signal: null,
+        stdout: '429 rate limit reached; try again in 1 minute\n',
+        stderr: '',
+        logPath: null,
+      };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.equal(result.status, 'watch_aborted');
+  assert.equal(calls, 1);
+  assert.equal(state.status, 'cooling_down');
+  assert.equal(state.last_watch_event, 'watch_aborted');
+});
+
+test('watch abort preserves cooldown state without marking failed', async () => {
+  const repo = makeRepo();
+  let currentMs = Date.parse('2026-06-29T00:00:00.000Z');
+  const controller = new AbortController();
+
+  const result = await watchManagedSession({
+    cwd: repo,
+    adapter: codexAdapter,
+    signal: controller.signal,
+    clock: () => new Date(currentMs),
+    sleep: async () => {
+      controller.abort();
+    },
+    recoveryCheck: okRecovery,
+    runner: async () => ({
+      exitCode: 1,
+      signal: null,
+      stdout: 'session_id: sess-abort\n429 rate limit reached; try again in 1 hour\n',
+      stderr: '',
+      logPath: null,
+    }),
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.equal(result.status, 'watch_aborted');
+  assert.equal(state.status, 'cooling_down');
+  assert.equal(state.last_watch_event, 'watch_aborted');
+  assert.notEqual(state.status, 'failed');
 });
 
 test('resume waits until cooldown deadline unless allowEarly is set', async () => {

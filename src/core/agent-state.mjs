@@ -57,6 +57,12 @@ export function makeInitialState({ repoRoot, provider, taskId, timestamp }) {
     auto_continue_after_handoff: false,
     next_resume_at: null,
     cooldown_reason: null,
+    usage_window_started_at: null,
+    cooldown_detected_at: null,
+    reset_time_provenance: null,
+    watch_started_at: null,
+    watch_resume_count: 0,
+    last_watch_event: null,
     last_event: 'task_created',
     created_at: timestamp,
     updated_at: timestamp,
@@ -142,7 +148,7 @@ export function loadAgentState(repoRoot) {
   return { config, state };
 }
 
-export function appendEvent(repoRoot, state, event, reason, timestamp = nowIso()) {
+export function appendEvent(repoRoot, state, event, reason, timestamp = nowIso(), metadata = null) {
   appendJsonLine(paths(repoRoot).sessions, {
     timestamp,
     task_id: state.task_id,
@@ -152,6 +158,7 @@ export function appendEvent(repoRoot, state, event, reason, timestamp = nowIso()
     event,
     handoff_path: state.current_handoff_path,
     reason,
+    ...(metadata && typeof metadata === 'object' ? metadata : {}),
   });
 }
 
@@ -160,7 +167,14 @@ export function saveState(repoRoot, state) {
   writeJsonFile(paths(repoRoot).state, state);
 }
 
-export function transitionState(repoRoot, changes, event, reason, timestamp = nowIso()) {
+export function transitionState(
+  repoRoot,
+  changes,
+  event,
+  reason,
+  timestamp = nowIso(),
+  metadata = null,
+) {
   const { state } = loadAgentState(repoRoot);
   const nextState = {
     ...state,
@@ -170,13 +184,13 @@ export function transitionState(repoRoot, changes, event, reason, timestamp = no
   };
 
   saveState(repoRoot, nextState);
-  appendEvent(repoRoot, nextState, event, reason, timestamp);
+  appendEvent(repoRoot, nextState, event, reason, timestamp, metadata);
   return nextState;
 }
 
-export function writeSnapshotForState(repoRoot, state, timestamp = nowIso()) {
+export function writeSnapshotForState(repoRoot, state, timestamp = nowIso(), metadata = null) {
   const filePaths = paths(repoRoot);
-  writeTextFile(filePaths.snapshot, buildSnapshotText(repoRoot, state, timestamp));
+  writeTextFile(filePaths.snapshot, buildSnapshotText(repoRoot, state, timestamp, metadata));
   return filePaths.snapshot;
 }
 
@@ -434,11 +448,19 @@ export function statusAgent({ cwd = process.cwd() } = {}) {
     nextAction,
     overnightMode: config.overnight_mode,
     autoContinueAfterHandoff: config.auto_continue_after_handoff,
+    nextResumeAt: state.next_resume_at,
+    cooldownDetectedAt: state.cooldown_detected_at,
+    usageWindowStartedAt: state.usage_window_started_at,
+    resetTimeProvenance: state.reset_time_provenance,
+    watchStartedAt: state.watch_started_at,
+    watchResumeCount: state.watch_resume_count,
+    lastWatchEvent: state.last_watch_event,
     cooldownSeconds,
+    watchdogRunning: 'unknown_no_lock',
   };
 }
 
-function buildSnapshotText(repoRoot, state, timestamp) {
+function buildSnapshotText(repoRoot, state, timestamp, metadata = null) {
   const git = readGitSnapshot(repoRoot);
   return formatSnapshot({
     timestamp,
@@ -446,6 +468,7 @@ function buildSnapshotText(repoRoot, state, timestamp) {
     gitStatus: git.status,
     gitDiffStat: git.diffStat,
     state,
+    logPath: metadata?.logPath ?? null,
   });
 }
 

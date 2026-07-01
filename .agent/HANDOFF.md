@@ -18,7 +18,7 @@ None.
 
 ## Status
 
-v0.1 preview release polish and GitHub owner correction are complete. Latest pushed commit is `a49d93b Fix GitHub owner metadata for v0.1` on `Hsi431/continuation-layer`; CI is green. Local installation is complete: the `continuity` CLI is linked, and the Codex `codex-continuity@personal` plugin is installed and enabled.
+Cooldown watchdog blocker has been implemented in the working tree. `continuity watch` now has a foreground cooldown wait/resume loop with reset provenance, mechanical cooldown snapshots, circuit breakers, Ctrl-C abort handling, CLI/status/docs updates, and scenario tests. Changes are not committed.
 
 ## Goal
 
@@ -26,10 +26,18 @@ Build Continuation Layer v0 for Codex CLI first, with a future Claude Code adapt
 
 ## Current Stage
 
-v0.1 preview is ready for tag/release when requested. Current local machine can use `continuity` directly, and new Codex sessions can load the installed continuity plugin/skill/hooks.
+v0.1 release preparation was paused for the cooldown watchdog blocker. It can resume after review/commit/CI for the watchdog changes.
 
 ## What Changed
 
+- Added `continuity watch` as the formal long-lived cooldown watchdog mode.
+- Kept `continuity start` as manual one-shot mode and `continuity resume` as manual same-session cooldown resume.
+- Added reset-time provenance model: provider timestamp, provider relative reset, usage-window anchor, and conservative cooldown-detected fallback.
+- Added state/config fields for usage-window anchor, cooldown detection time, reset provenance, watch start time, watch resume count, last watch event, and watch circuit breaker defaults.
+- Added cooldown mechanical snapshot metadata for log path, current session id, git status/diff stat, cooldown detection time, next resume time, and reset provenance.
+- Added watch events, heartbeat output, status fields, direct Codex limitation docs, and Ctrl-C abort guidance.
+- Added scenario tests for watchdog wait/resume, repeated cooldown, past reset immediate resume, max resume count, max watch hours, missing session id, abort, reset provenance, status fields, and README/CLI help consistency.
+- Added `docs/COOLDOWN_WATCHDOG.md`.
 - Added core constants and defaults for config, state, statuses, modes, events, and providers.
 - Added schema validation for `.agent/config.json` and `.agent/state.json`.
 - Added git snapshot helpers and `.agent` file helpers.

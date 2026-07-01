@@ -22,13 +22,14 @@ continuity status
 
 Expected: `.agent/` exists, status is readable, and no provider session starts.
 
-## 2. Start dry-run
+## 2. Watch dry-run
 
 ```sh
+continuity watch --dry-run "make a harmless README edit"
 continuity start --dry-run "make a harmless README edit"
 ```
 
-Expected: the printed provider command uses Codex non-interactive execution and does not launch a real session.
+Expected: the printed provider command uses Codex non-interactive execution and does not launch a real session. `watch` is the recommended long-lived cooldown watchdog; `start` is manual one-shot mode.
 
 ## 3. Snapshot
 
@@ -47,7 +48,7 @@ Run the simulated cooldown tests from the project checkout:
 npm test -- tests/supervisor.test.mjs
 ```
 
-Expected: cooldown detection records `cooling_down`, `next_resume_at`, and same-session resume command behavior without calling a real provider.
+Expected: cooldown detection records `cooling_down`, `next_resume_at`, reset provenance, mechanical snapshot data, foreground wait behavior, same-session automatic resume, circuit breakers, and abort behavior without calling a real provider.
 
 ## 5. Continue dry-run
 

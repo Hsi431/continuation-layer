@@ -12,6 +12,7 @@ export const STATUS_VALUES = Object.freeze([
 
 export const MODE_VALUES = Object.freeze([
   'normal',
+  'watch',
   'cooldown_resume',
   'context_handoff',
   'overnight',
@@ -23,6 +24,12 @@ export const EVENT_VALUES = Object.freeze([
   'checkpoint_written',
   'cooldown_detected',
   'cooldown_resumed',
+  'watch_started',
+  'watch_sleeping',
+  'watch_resuming',
+  'watch_stopped',
+  'watch_aborted',
+  'watch_limit_reached',
   'context_pressure_detected',
   'compaction_recorded',
   'handoff_written',
@@ -37,6 +44,16 @@ export const EVENT_VALUES = Object.freeze([
 
 export const PROVIDER_VALUES = Object.freeze(['codex', 'claude-code']);
 
+export const RESET_TIME_PROVENANCE_VALUES = Object.freeze([
+  'provider_reset_at',
+  'provider_relative',
+  'provider_epoch',
+  'usage_window_anchor',
+  'cooldown_detected_fallback',
+  'manual_override',
+  'unknown',
+]);
+
 export const DEFAULT_CONFIG = Object.freeze({
   provider: 'codex',
   overnight_mode: false,
@@ -49,6 +66,9 @@ export const DEFAULT_CONFIG = Object.freeze({
   checkpoint_policy: 'stage_boundary',
   max_handoff_age_minutes: 120,
   log_retention_days: 14,
+  max_cooldown_resumes: 3,
+  max_watch_hours: 18,
+  watch_heartbeat_minutes: 30,
 });
 
 export const AGENT_DIR = '.agent';

@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { createWriteStream, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-export function runCommand(commandSpec, { logPath = null } = {}) {
+export function runCommand(commandSpec, { logPath = null, signal: abortSignal = null } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(commandSpec.command, commandSpec.args, {
       cwd: commandSpec.cwd,
@@ -32,18 +32,29 @@ export function runCommand(commandSpec, { logPath = null } = {}) {
       log?.write(text);
     });
 
+    const abort = () => {
+      child.kill('SIGINT');
+    };
+    abortSignal?.addEventListener('abort', abort, { once: true });
+    if (abortSignal?.aborted) {
+      abort();
+    }
+
     child.on('error', (error) => {
+      abortSignal?.removeEventListener('abort', abort);
       log?.end();
       reject(error);
     });
 
-    child.on('close', (exitCode, signal) => {
+    child.on('close', (exitCode, childSignal) => {
+      abortSignal?.removeEventListener('abort', abort);
       const result = {
         exitCode,
-        signal,
+        signal: childSignal,
         stdout,
         stderr,
         logPath,
+        aborted: childSignal === 'SIGINT' && abortSignal?.aborted === true,
       };
 
       if (log) {

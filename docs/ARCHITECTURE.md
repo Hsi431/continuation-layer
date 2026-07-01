@@ -39,7 +39,7 @@ The v0.1 preview implements durable state validation, snapshots, recovery checks
 - Wait outside hook runtime.
 - Resume same session or start continuation session.
 
-The v0.1 preview implements start/resume process execution, log capture, cooldown detection, reset-time calculation, and state transitions. Long waits are not performed inside hooks; resume commands respect recorded `next_resume_at` state.
+The v0.1 preview implements start/resume/watch process execution, log capture, cooldown detection, reset-time calculation, state transitions, and a foreground cooldown watchdog loop. Long waits are not performed inside hooks; `continuity watch` keeps the supervisor alive and resumes the same session after `next_resume_at`.
 
 ## Provider Adapter Responsibilities
 
