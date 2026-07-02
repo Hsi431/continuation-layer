@@ -78,7 +78,9 @@ Expected:
 - `.agent/state.json` becomes `cooling_down`;
 - `.agent/AUTO_SNAPSHOT.md` is written;
 - `sessions.jsonl` records `interactive_cooldown_detected`;
-- after Enter confirmation, wrapper waits until `next_resume_at`;
+- if Codex exits after cooldown, wrapper treats it as already paused and waits until `next_resume_at`;
+- after Enter confirmation, wrapper waits until `next_resume_at` when Codex exits cleanly;
+- if Codex does not exit after Enter, wrapper times out safely and keeps `cooling_down` state;
 - wrapper launches interactive `codex resume <session_id>` when a session id exists;
 - wrapper falls back to `codex resume --last` when no explicit session id exists.
 

@@ -44,7 +44,9 @@ prints a wrapper message. It does not yet pause Codex, wait, or resume.
 Ticket 5 stops normal input pass-through after interactive cooldown detection. The wrapper prompts
 the user to press Enter to pause or Ctrl-C to abort. Enter sends `SIGINT` to Codex as a graceful exit
 request; Ctrl-C also sends `SIGINT` and leaves the already-written cooldown state intact. The wrapper
-does not hard-kill Codex by default.
+does not hard-kill Codex by default. If Codex does not exit after the pause request, a grace timeout
+aborts the wrapper safely and leaves state as `cooling_down` so the user can exit Codex manually and
+rerun `continuity shell`.
 
 Ticket 6 waits until `next_resume_at` after the user confirms pause, then launches interactive
 resume. It prefers:
@@ -256,15 +258,21 @@ Ticket 7 coverage verifies:
 - missing `next_resume_at` aborts without starting Codex
 - non-interactive `cooling_down` state is not adopted by `continuity shell`
 
+Blocker coverage verifies:
+
+- cooldown output followed by child exit is treated as already paused and proceeds to wait/resume
+- pause `SIGINT` that does not exit Codex before the grace timeout aborts safely without resuming
+
 ## Cooldown Behavior Model
 
 Case A: Codex exits after cooldown.
 
 ```text
-PTY child exits
--> wrapper inspects buffered output
+PTY output contains cooldown text
 -> cooldown detected
+-> PTY child exits
 -> write cooling_down state and snapshot
+-> treat child exit as already paused
 -> wait until next_resume_at
 -> launch interactive resume
 ```
@@ -278,11 +286,14 @@ PTY output contains cooldown text
 -> wrapper stops normal input pass-through
 -> user confirms pause or aborts
 -> wrapper attempts graceful shutdown
--> wait until next_resume_at
+-> if Codex exits, wait until next_resume_at
 -> launch interactive resume
 ```
 
-v0.2 should be conservative in Case B. It should not hard-kill Codex by default. A forced termination option can be added later or behind an explicit flag.
+If Codex does not exit before the pause grace timeout, the wrapper stops waiting on the child,
+preserves `cooling_down` state, and tells the user to exit Codex manually before rerunning
+`continuity shell`. v0.2 does not hard-kill Codex by default. A forced termination option can be
+added later or behind an explicit flag.
 
 ## State Notes
 

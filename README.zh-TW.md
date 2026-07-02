@@ -115,8 +115,8 @@ continuity shell
 ```
 
 `continuity shell` 是 Linux-first experimental v0.2 work。它會在 PTY wrapper 裡啟動 Codex，
-觀察 terminal output 的 cooldown text，寫入 `.agent` cooldown state，在 user confirm pause
-後等待 reset window，並用 interactive `codex resume` 恢復。
+觀察 terminal output 的 cooldown text，寫入 `.agent` cooldown state，在 Codex 自己退出或
+user confirm pause 後等待 reset window，並用 interactive `codex resume` 恢復。
 
 它仍然不能 attach 到已經直接執行中的 `codex` process。
 

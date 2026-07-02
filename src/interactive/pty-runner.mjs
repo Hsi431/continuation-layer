@@ -11,7 +11,7 @@ export async function runPtyCommand(commandSpec, options = {}) {
     ptyFactory = null,
     resizeEmitter = process,
     onData = null,
-    onInput = null,
+    onInput: onInputHook = null,
   } = options;
 
   assertInteractiveTty({ stdin, stdout });
@@ -20,6 +20,7 @@ export async function runPtyCommand(commandSpec, options = {}) {
   const size = terminalSize(stdout);
   let child = null;
   let restored = false;
+  let finished = false;
   let dataSubscription = null;
   let exitSubscription = null;
 
@@ -29,7 +30,7 @@ export async function runPtyCommand(commandSpec, options = {}) {
         return;
       }
       restored = true;
-      stdin.removeListener?.('data', onInput);
+      stdin.removeListener?.('data', handleInput);
       resizeEmitter.removeListener?.('SIGWINCH', onResize);
       abortSignal?.removeEventListener?.('abort', onAbort);
       dataSubscription?.dispose?.();
@@ -38,21 +39,30 @@ export async function runPtyCommand(commandSpec, options = {}) {
     };
 
     const finish = (result) => {
+      if (finished) {
+        return;
+      }
+      finished = true;
       cleanup();
       resolve({
+        ...result,
         exitCode: result?.exitCode ?? 0,
         signal: result?.signal ?? null,
       });
     };
 
     const fail = (error) => {
+      if (finished) {
+        return;
+      }
+      finished = true;
       cleanup();
       reject(error);
     };
 
-    const onInput = (chunk) => {
+    const handleInput = (chunk) => {
       const text = String(chunk);
-      const shouldPass = options.onInput?.(text, { child }) !== false;
+      const shouldPass = onInputHook?.(text, { child, finish }) !== false;
       if (shouldPass) {
         child?.write(text);
       }
@@ -80,7 +90,7 @@ export async function runPtyCommand(commandSpec, options = {}) {
 
       enableRawMode(stdin);
       stdin.resume?.();
-      stdin.on?.('data', onInput);
+      stdin.on?.('data', handleInput);
       resizeEmitter.on?.('SIGWINCH', onResize);
       abortSignal?.addEventListener?.('abort', onAbort, { once: true });
 

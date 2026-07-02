@@ -116,7 +116,7 @@ continuity shell
 
 `continuity shell` is Linux-first experimental v0.2 work. It launches Codex inside a PTY wrapper,
 observes terminal output for cooldown text, records `.agent` cooldown state, waits through reset
-windows after user-confirmed pause, and resumes with interactive `codex resume`.
+windows after Codex exits or user-confirmed pause, and resumes with interactive `codex resume`.
 
 It still cannot attach to an already-running direct `codex` process.
 

@@ -223,6 +223,9 @@ test('interactive shell records cooldown state, snapshot, event, and wrapper mes
   const repo = makeRepo();
   const stderr = new FakeOutput();
   let cooldownEvent = null;
+  const child = {
+    kill() {},
+  };
 
   const result = await runInteractiveShell({
     cwd: repo,
@@ -233,7 +236,8 @@ test('interactive shell records cooldown state, snapshot, event, and wrapper mes
     },
     ptyRunner: async (_spec, options) => {
       options.onData('session_id: sess-tty\nusage limit reached; try again in 10 minutes');
-      return { exitCode: 0, signal: null };
+      options.onInput('\u0003', { child });
+      return { exitCode: null, signal: 'SIGINT' };
     },
   });
   const state = readJson(join(repo, '.agent', 'state.json'));
@@ -270,6 +274,51 @@ test('interactive shell records cooldown state, snapshot, event, and wrapper mes
   assert.match(stderr.text, /\[continuity\] Next resume at: 2026-06-29T00:15:00\.000Z/);
 });
 
+test('interactive shell auto-waits when cooldown output is followed by child exit', async () => {
+  const repo = makeRepo();
+  const stderr = new FakeOutput();
+  let nowMs = Date.parse('2026-06-29T00:00:00.000Z');
+  const commands = [];
+  const sleeps = [];
+
+  const result = await runInteractiveShell({
+    cwd: repo,
+    stderr,
+    clock: () => new Date(nowMs),
+    sleep: async (milliseconds) => {
+      sleeps.push(milliseconds);
+      nowMs += milliseconds;
+    },
+    ptyRunner: async (spec, options) => {
+      commands.push(spec);
+      if (commands.length === 1) {
+        options.onData('session_id: sess-exit\nusage limit reached; try again in 10 minutes');
+      }
+      return { exitCode: 0, signal: null };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map(JSON.parse);
+
+  assert.equal(result.runs[0].childExitedAfterCooldown, true);
+  assert.equal(result.pauseConfirmed, true);
+  assert.equal(result.interactiveResumes, 1);
+  assert.deepEqual(sleeps, [900000]);
+  assert.deepEqual(commands[0].args, ['-C', repo]);
+  assert.deepEqual(commands[1].args, ['resume', '-C', repo, 'sess-exit']);
+  assert.equal(state.status, 'checkpointed');
+  assert.equal(state.interactive_resume_target, 'sess-exit');
+  assert.equal(state.interactive_resume_target_provenance, 'explicit_session_id');
+  assert.equal(
+    sessions.some((event) => event.event === 'interactive_shell_aborted'),
+    false,
+  );
+  assert.match(stderr.text, /Resuming Codex session: sess-exit/);
+});
+
 test('interactive shell blocks normal input after cooldown and pauses on Enter', async () => {
   const repo = makeRepo();
   const stderr = new FakeOutput();
@@ -291,6 +340,7 @@ test('interactive shell blocks normal input after cooldown and pauses on Enter',
       sleeps.push(milliseconds);
       nowMs += milliseconds;
     },
+    pauseGraceSleep: () => new Promise(() => {}),
     ptyRunner: async (spec, options) => {
       commands.push(spec);
       if (commands.length === 1) {
@@ -317,6 +367,48 @@ test('interactive shell blocks normal input after cooldown and pauses on Enter',
   assert.match(stderr.text, /Press Enter to pause and wait/);
   assert.match(stderr.text, /Pausing Codex until the cooldown reset window/);
   assert.match(stderr.text, /Resuming Codex session: sess-tty/);
+});
+
+test('interactive shell aborts safely when pause SIGINT does not exit child before grace timeout', async () => {
+  const repo = makeRepo();
+  const stderr = new FakeOutput();
+  const commands = [];
+  const graceSleeps = [];
+  const child = {
+    kills: [],
+    kill(signal) {
+      this.kills.push(signal);
+    },
+  };
+
+  const result = await runInteractiveShell({
+    cwd: repo,
+    stderr,
+    clock: () => new Date('2026-06-29T00:00:00.000Z'),
+    pauseGraceSeconds: 3,
+    pauseGraceSleep: async (milliseconds) => {
+      graceSleeps.push(milliseconds);
+    },
+    ptyRunner: async (spec, options) =>
+      new Promise((resolve) => {
+        commands.push(spec);
+        options.onData('session_id: sess-stuck\nusage limit reached; try again in 10 minutes');
+        assert.equal(options.onInput('\r', { child, finish: resolve }), false);
+      }),
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.equal(result.pauseGraceTimedOut, true);
+  assert.equal(result.pauseConfirmed, true);
+  assert.deepEqual(child.kills, ['SIGINT']);
+  assert.deepEqual(graceSleeps, [3000]);
+  assert.equal(commands.length, 1);
+  assert.equal(state.status, 'cooling_down');
+  assert.equal(state.interactive_shell_status, 'aborted');
+  assert.equal(state.current_session_id, 'sess-stuck');
+  assert.match(stderr.text, /Codex did not exit after pause request/);
+  assert.match(stderr.text, /State remains cooling_down/);
+  assert.match(stderr.text, /Exit Codex manually, then rerun: continuity shell/);
 });
 
 test('interactive shell preserves state and aborts wrapper on Ctrl-C after cooldown', async () => {
@@ -364,6 +456,7 @@ test('interactive shell falls back to codex resume --last without a session id',
     sleep: async (milliseconds) => {
       nowMs += milliseconds;
     },
+    pauseGraceSleep: () => new Promise(() => {}),
     ptyRunner: async (spec, options) => {
       commands.push(spec);
       if (commands.length === 1) {

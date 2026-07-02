@@ -5,6 +5,8 @@ import { recordInteractiveCooldown } from './cooldown-recorder.mjs';
 import { runPtyCommand } from './pty-runner.mjs';
 import { createCooldownStreamDetector } from './stream-detector.mjs';
 
+export const DEFAULT_INTERACTIVE_PAUSE_GRACE_SECONDS = 10;
+
 export async function runInteractiveShell({
   cwd = process.cwd(),
   prompt = '',
@@ -19,7 +21,9 @@ export async function runInteractiveShell({
   cooldownRecorder = recordInteractiveCooldown,
   clock = () => new Date(),
   sleep = defaultSleep,
+  pauseGraceSleep = sleep,
   onEvent = () => {},
+  pauseGraceSeconds = DEFAULT_INTERACTIVE_PAUSE_GRACE_SECONDS,
 } = {}) {
   const repoRoot = resolveRepoRoot(cwd);
   const { config, state } = loadAgentState(repoRoot);
@@ -78,6 +82,9 @@ export async function runInteractiveShell({
       streamDetector,
       cooldownRecorder,
       clock,
+      sleep,
+      pauseGraceSleep,
+      pauseGraceSeconds,
     });
     runs.push(result);
 
@@ -113,7 +120,7 @@ export async function runInteractiveShell({
       };
     }
 
-    if (result.abortRequested || !result.pauseConfirmed) {
+    if (result.abortRequested || result.pauseGraceTimedOut || !result.pauseConfirmed) {
       transitionState(
         repoRoot,
         {
@@ -121,9 +128,7 @@ export async function runInteractiveShell({
           last_tty_event: 'interactive_shell_aborted',
         },
         'interactive_shell_aborted',
-        result.abortRequested
-          ? 'interactive shell aborted'
-          : 'interactive cooldown pause not confirmed',
+        pauseAbortReason(result),
         clock().toISOString(),
       );
       return { ...result, runs, interactiveResumes };
@@ -179,11 +184,16 @@ async function runInteractivePtyOnce({
   streamDetector,
   cooldownRecorder,
   clock,
+  sleep,
+  pauseGraceSleep,
+  pauseGraceSeconds,
 }) {
   let cooldownRecord = null;
   let waitingForPauseConfirmation = false;
   let pauseConfirmed = false;
   let abortRequested = false;
+  let pauseGraceTimedOut = false;
+  let ptyFinished = false;
   const detector =
     streamDetector ??
     createCooldownStreamDetector({
@@ -225,13 +235,34 @@ async function runInteractivePtyOnce({
         waitingForPauseConfirmation = false;
         context.child?.kill?.('SIGINT');
         stderr?.write?.('[continuity] Pausing Codex until the cooldown reset window.\n');
+        startPauseGraceTimer({
+          context,
+          stderr,
+          sleep: pauseGraceSleep,
+          pauseGraceSeconds,
+          isFinished: () => ptyFinished,
+          timedOut: () => {
+            pauseGraceTimedOut = true;
+          },
+        });
         return false;
       }
 
       return false;
     },
   });
-  return { ...result, cooldown: cooldownRecord, pauseConfirmed, abortRequested };
+  ptyFinished = true;
+  const childExitedAfterCooldown = Boolean(
+    cooldownRecord && !pauseConfirmed && !abortRequested && !pauseGraceTimedOut,
+  );
+  return {
+    ...result,
+    cooldown: cooldownRecord,
+    pauseConfirmed: pauseConfirmed || childExitedAfterCooldown,
+    childExitedAfterCooldown,
+    abortRequested,
+    pauseGraceTimedOut,
+  };
 }
 
 function writeWrapperMessage(stderr, record) {
@@ -239,6 +270,48 @@ function writeWrapperMessage(stderr, record) {
   stderr?.write?.(`[continuity] Next resume at: ${record.nextResumeAt}\n`);
   stderr?.write?.('[continuity] Press Enter to pause and wait.\n');
   stderr?.write?.('[continuity] Press Ctrl-C to abort wrapper and preserve state.\n');
+}
+
+function startPauseGraceTimer({ context, stderr, sleep, pauseGraceSeconds, isFinished, timedOut }) {
+  Promise.resolve()
+    .then(() => sleep(pauseGraceSeconds * 1000))
+    .then(() => {
+      if (isFinished()) {
+        return;
+      }
+      timedOut();
+      stderr?.write?.('[continuity] Codex did not exit after pause request.\n');
+      stderr?.write?.('[continuity] State remains cooling_down.\n');
+      stderr?.write?.('[continuity] Exit Codex manually, then rerun: continuity shell\n');
+      context.finish?.({
+        exitCode: null,
+        signal: 'SIGINT',
+        pauseGraceTimedOut: true,
+      });
+    })
+    .catch(() => {
+      if (isFinished()) {
+        return;
+      }
+      timedOut();
+      context.finish?.({
+        exitCode: null,
+        signal: 'SIGINT',
+        pauseGraceTimedOut: true,
+      });
+    });
+}
+
+function pauseAbortReason(result) {
+  if (result.abortRequested) {
+    return 'interactive shell aborted';
+  }
+
+  if (result.pauseGraceTimedOut) {
+    return 'interactive cooldown pause grace timeout';
+  }
+
+  return 'interactive cooldown pause not confirmed';
 }
 
 function selectInteractiveResumeTarget(state) {
