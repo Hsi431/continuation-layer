@@ -154,3 +154,35 @@ Related files:
 Consequence: `continuity shell` adopts `cooling_down` only when interactive metadata is present. A
 non-interactive `cooling_down` state is rejected with guidance to use `continuity watch` or
 `continuity resume`.
+
+## Decision: Treat interactive cooldown child exit as already paused
+
+Reason: Codex may display cooldown text and exit on its own. Requiring Enter after the child has
+already exited would prevent the wrapper from waiting and resuming.
+
+Date: 2026-07-03
+
+Related files:
+
+- `src/interactive/shell-session.mjs`
+- `tests/interactive-runner.test.mjs`
+
+Consequence: If cooldown was recorded and the PTY child exits without user confirmation, the wrapper
+treats that as a completed pause and proceeds to wait/resume.
+
+## Decision: Add interactive pause grace timeout without hard kill
+
+Reason: Codex may treat `SIGINT` as cancel input instead of exiting the TUI. The wrapper must not
+wait forever, but v0.2 should stay conservative and avoid hard-killing Codex by default.
+
+Date: 2026-07-03
+
+Related files:
+
+- `src/interactive/shell-session.mjs`
+- `src/interactive/pty-runner.mjs`
+- `tests/interactive-runner.test.mjs`
+
+Consequence: After Enter sends `SIGINT`, the wrapper waits for a grace timeout. If Codex still has
+not exited, the wrapper aborts safely, leaves `cooling_down` state intact, and tells the user to
+exit Codex manually before rerunning `continuity shell`.

@@ -2,12 +2,14 @@
 
 ## Next Action
 
-Push the v0.2 interactive wrapper commits and review CI.
+Run full validation, commit the v0.2 interactive cooldown blocker fixes, push, and review CI.
 
 ## Target Files
 
 - `bin/continuity.mjs`
 - `docs/INTERACTIVE_WRAPPER.md`
+- `docs/SMOKE_INTERACTIVE.md`
+- `docs/releases/v0.2.0.md`
 - `package.json`
 - `package-lock.json`
 - `src/interactive/pty-runner.mjs`
@@ -36,4 +38,4 @@ git status --short
 
 ## Stop Condition
 
-Stop if push fails or CI reports a regression.
+Stop if validation fails, push fails, or CI reports a regression.

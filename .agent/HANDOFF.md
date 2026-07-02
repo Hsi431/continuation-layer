@@ -18,7 +18,7 @@ None.
 
 ## Status
 
-v0.2 interactive wrapper groundwork is active. Ticket 0 research through Ticket 9 release preview validation are complete in the working tree. The v0.1 cooldown watchdog core remains unchanged.
+v0.2 interactive wrapper blocker fixes are in progress. The v0.1 cooldown watchdog core remains unchanged.
 
 ## Goal
 
@@ -26,7 +26,7 @@ Build a Linux-first experimental interactive wrapper without changing cooldown w
 
 ## Current Stage
 
-Ticket 9 complete; next step is push and CI review.
+Interactive cooldown edge cases fixed locally and full validation passed; next step is commit, push, and CI review.
 
 ## What Changed
 
@@ -53,6 +53,9 @@ Ticket 9 complete; next step is push and CI review.
 - Added tests for same-session interactive resume and `--last` fallback.
 - Added adoption of existing interactive `cooling_down` state on `continuity shell` restart.
 - Added tests for adoption, immediate resume when `next_resume_at` is past, broken cooldown abort, and refusing non-interactive cooldown adoption.
+- Fixed cooldown output followed by child exit so it is treated as already paused and proceeds to wait/resume.
+- Added interactive pause grace timeout so a stuck Codex TUI cannot hang the wrapper forever after Enter.
+- Bumped package metadata to `0.2.0`.
 - Updated README and README.zh-TW with experimental `continuity shell` guidance.
 - Added `docs/SMOKE_INTERACTIVE.md` with Linux-first manual smoke checklist and troubleshooting.
 - Added docs tests for interactive wrapper limitations.
@@ -64,6 +67,8 @@ Ticket 9 complete; next step is push and CI review.
 
 - `bin/continuity.mjs`
 - `docs/INTERACTIVE_WRAPPER.md`
+- `docs/SMOKE_INTERACTIVE.md`
+- `docs/releases/v0.2.0.md`
 - `package.json`
 - `package-lock.json`
 - `src/interactive/pty-runner.mjs`
@@ -81,18 +86,20 @@ Ticket 9 complete; next step is push and CI review.
 - Long cooldown waits belong to the foreground supervisor, not hooks.
 - Cooldown same-session recovery may use stale semantic handoff as context, but child continuation remains strict.
 - `node-pty` is the real PTY runtime dependency for the Linux-first wrapper; tests use fake PTY adapters.
+- Interactive cooldown child exit is treated as a completed pause.
+- Interactive pause timeout preserves `cooling_down` state and does not hard-kill Codex by default.
 
 ## Current Git State Summary
 
-Branch is ahead of origin with v0.2 interactive wrapper commits. Run `git status --short` before publishing.
+Working tree has v0.2 blocker fixes and package metadata changes pending commit. Run `git status --short` before publishing.
 
 ## Tests Run
 
-- `npm ci`
 - `npm run format:check`
 - `npm run check`
 - `npm test`
 - `npm run pack:check`
+- `npm ci`
 - `git diff --check`
 
 ## Test Result
@@ -114,8 +121,8 @@ Passed.
 
 ## Next Exact Steps
 
-1. Push the v0.2 interactive wrapper commits.
-2. Review CI status before tagging or publishing.
+1. Commit the blocker fix and metadata changes.
+2. Push and review CI status before tagging or publishing.
 3. Run manual Linux TTY smoke before claiming the interactive runtime path fully accepted.
 
 ## Do Not Redo
@@ -127,4 +134,4 @@ Passed.
 
 ## Last Updated
 
-2026-07-02T00:00:00Z
+2026-07-03T00:00:00Z
