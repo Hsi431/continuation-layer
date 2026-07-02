@@ -7,6 +7,10 @@ test('CLI help documents watch mode and direct Codex limitation', () => {
 
   assert.match(
     helpSource,
+    /shell \[prompt\]\s+Start Codex interactive TUI under Continuation Layer wrapper/,
+  );
+  assert.match(
+    helpSource,
     /watch \[prompt\]\s+Start provider CLI under long-lived cooldown watchdog/,
   );
   assert.match(helpSource, /start \[prompt\]\s+Manual one-shot provider run under supervisor/);
@@ -32,4 +36,16 @@ test('cooldown watchdog docs state current gaps and target behavior', () => {
   assert.match(docs, /If you run `codex` directly/i);
   assert.match(docs, /usage_window_started_at \+ 5h \+ buffer/);
   assert.match(docs, /continuity watch "task"/);
+});
+
+test('shell dry-run uses the interactive provider command path', () => {
+  const helpSource = readFileSync(new URL('../bin/continuity.mjs', import.meta.url), 'utf8');
+
+  assert.match(helpSource, /kind === 'shell'/);
+  assert.match(
+    helpSource,
+    /adapter\.startSessionCommand\(\{ repoRoot, prompt, nonInteractive: false \}\)/,
+  );
+  assert.match(helpSource, /printCommandLine\(dryRunCommand\('shell', options\.prompt\)\)/);
+  assert.match(helpSource, /continuity shell currently supports --dry-run only/);
 });

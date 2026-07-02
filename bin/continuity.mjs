@@ -54,6 +54,7 @@ Commands:
   init                 Initialize .agent in the current git repo
   status [--json]      Show current durable state
   snapshot             Write .agent/AUTO_SNAPSHOT.md
+  shell [prompt]       Start Codex interactive TUI under Continuation Layer wrapper
   watch [prompt]       Start provider CLI under long-lived cooldown watchdog
   start [prompt]       Manual one-shot provider run under supervisor
   resume               Resume a cooling_down task under supervisor
@@ -67,7 +68,7 @@ Options:
   --task-id <id>       Task id for init
   --provider <name>    Provider for init; default codex
   --json               Machine-readable status output
-  --dry-run            Print provider command without executing start/watch/resume/continue
+  --dry-run            Print provider command without executing start/watch/shell/resume/continue
   --allow-early        Resume before next_resume_at
   --yes                Confirm child continuation startup
 
@@ -106,6 +107,19 @@ function printStatus(status) {
 
 function printCommandSpec(commandSpec) {
   console.log(JSON.stringify(commandSpec, null, 2));
+}
+
+function printCommandLine(commandSpec) {
+  console.log([commandSpec.command, ...commandSpec.args].map(shellQuote).join(' '));
+}
+
+function shellQuote(value) {
+  const text = String(value);
+  if (/^[A-Za-z0-9_./:=@+-]+$/.test(text)) {
+    return text;
+  }
+
+  return `'${text.replaceAll("'", "'\\''")}'`;
 }
 
 function printSupervisorResult(result) {
@@ -196,6 +210,10 @@ function dryRunCommand(kind, prompt) {
 
   if (kind === 'start' || kind === 'watch') {
     return adapter.startSessionCommand({ repoRoot, prompt, nonInteractive: true });
+  }
+
+  if (kind === 'shell') {
+    return adapter.startSessionCommand({ repoRoot, prompt, nonInteractive: false });
   }
 
   if (kind === 'continue') {
@@ -311,6 +329,15 @@ async function main() {
       abort.dispose();
     }
     return;
+  }
+
+  if (command === 'shell') {
+    if (options.dryRun) {
+      printCommandLine(dryRunCommand('shell', options.prompt));
+      return;
+    }
+
+    throw new Error('continuity shell currently supports --dry-run only; PTY wrapper is planned.');
   }
 
   if (command === 'resume') {
