@@ -88,3 +88,20 @@ Related files:
 
 Consequence: The stream detector uses a local ANSI/control-sequence stripper and still delegates
 cooldown matching to `codexAdapter.detectCooldownError`.
+
+## Decision: Record interactive cooldown before controlling the TUI
+
+Reason: The first safe milestone after PTY detection is durable state capture. Pausing input,
+graceful shutdown, waiting, and resume have different failure modes and should be added after state
+recording is proven.
+
+Date: 2026-07-02
+
+Related files:
+
+- `src/interactive/cooldown-recorder.mjs`
+- `src/interactive/shell-session.mjs`
+- `tests/interactive-runner.test.mjs`
+
+Consequence: Ticket 4 writes `cooling_down` state, reset provenance, snapshot, and sessions event
+when PTY output shows cooldown, but it does not yet pause, wait, or resume the interactive session.

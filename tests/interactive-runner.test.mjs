@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -15,6 +15,10 @@ function makeRepo() {
   execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
   initAgent({ cwd: dir, taskId: 'task-interactive' });
   return dir;
+}
+
+function readJson(path) {
+  return JSON.parse(readFileSync(path, 'utf8'));
 }
 
 class FakeInput extends EventEmitter {
@@ -190,21 +194,46 @@ test('interactive shell builds a Codex TUI command through the PTY runner', asyn
   });
 });
 
-test('interactive shell tees PTY output into the cooldown stream detector', async () => {
+test('interactive shell records cooldown state, snapshot, event, and wrapper message', async () => {
   const repo = makeRepo();
+  const stderr = new FakeOutput();
   let cooldownEvent = null;
 
-  await runInteractiveShell({
+  const result = await runInteractiveShell({
     cwd: repo,
+    stderr,
+    clock: () => new Date('2026-06-29T00:00:00.000Z'),
     onCooldown: (event) => {
       cooldownEvent = event;
     },
     ptyRunner: async (_spec, options) => {
-      options.onData('usage limit reached; try again in 10 minutes');
+      options.onData('session_id: sess-tty\nusage limit reached; try again in 10 minutes');
       return { exitCode: 0, signal: null };
     },
   });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+  const snapshot = readFileSync(join(repo, '.agent', 'AUTO_SNAPSHOT.md'), 'utf8');
+  const sessions = readFileSync(join(repo, '.agent', 'sessions.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map(JSON.parse);
+  const lastEvent = sessions.at(-1);
 
+  assert.equal(result.cooldown.status, 'cooling_down');
   assert.equal(cooldownEvent.matched, true);
   assert.match(cooldownEvent.reason, /usage limit reached/i);
+  assert.equal(state.status, 'cooling_down');
+  assert.equal(state.mode, 'cooldown_resume');
+  assert.equal(state.current_session_id, 'sess-tty');
+  assert.equal(state.next_resume_at, '2026-06-29T00:15:00.000Z');
+  assert.equal(state.cooldown_detected_at, '2026-06-29T00:00:00.000Z');
+  assert.equal(state.reset_time_provenance, 'provider_relative');
+  assert.equal(state.last_event, 'interactive_cooldown_detected');
+  assert.match(snapshot, /status: cooling_down/);
+  assert.match(snapshot, /next resume at: 2026-06-29T00:15:00\.000Z/);
+  assert.equal(lastEvent.event, 'interactive_cooldown_detected');
+  assert.equal(lastEvent.source, 'interactive_shell');
+  assert.equal(lastEvent.next_resume_at, '2026-06-29T00:15:00.000Z');
+  assert.match(stderr.text, /\[continuity\] Cooldown detected\./);
+  assert.match(stderr.text, /\[continuity\] Next resume at: 2026-06-29T00:15:00\.000Z/);
 });

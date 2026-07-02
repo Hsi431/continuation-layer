@@ -23,6 +23,7 @@ export const EVENT_VALUES = Object.freeze([
   'session_started',
   'checkpoint_written',
   'cooldown_detected',
+  'interactive_cooldown_detected',
   'cooldown_resumed',
   'watch_started',
   'watch_sleeping',

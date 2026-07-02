@@ -1,11 +1,11 @@
 # Interactive Terminal Wrapper
 
-This document records Ticket 0 research plus Ticket 1 through Ticket 3 groundwork for the planned
+This document records Ticket 0 research plus Ticket 1 through Ticket 4 groundwork for the planned
 v0.2 interactive wrapper.
 
 Status: `continuity shell --dry-run`, the initial PTY runner foundation, and PTY output cooldown
-detection are implemented. Cooldown state recording, graceful pause, wait, and interactive resume
-are not implemented yet.
+detection/state recording are implemented. Graceful pause, wait, and interactive resume are not
+implemented yet.
 
 ## Scope
 
@@ -35,8 +35,11 @@ Use continuity watch for non-interactive tasks.
 ```
 
 Ticket 3 added a stream detector that watches PTY output without changing terminal pass-through
-behavior. Detection currently emits an internal callback only; it does not yet write `.agent` state,
-pause Codex, wait, or resume.
+behavior.
+
+Ticket 4 records interactive cooldown state when that detector fires. It writes `cooling_down`
+state, `next_resume_at`, reset provenance, `.agent/AUTO_SNAPSHOT.md`, and a sessions event, then
+prints a wrapper message. It does not yet pause Codex, wait, or resume.
 
 ## Codex CLI Observations
 
@@ -193,6 +196,18 @@ codexAdapter.parseResetTimeDetails(text, now)
 Ticket 3 uses a small local ANSI/control-sequence stripper instead of adding another dependency.
 Tests cover plain cooldown text, ANSI-colored output, chunked output, provider false positives, one
 event per cooldown episode, and rolling buffer caps.
+
+Ticket 4 coverage verifies that fake PTY cooldown output writes:
+
+- `status = cooling_down`
+- `mode = cooldown_resume`
+- `current_session_id`
+- `cooldown_detected_at`
+- `next_resume_at`
+- `reset_time_provenance`
+- `.agent/AUTO_SNAPSHOT.md`
+- `interactive_cooldown_detected` sessions event
+- wrapper message on stderr
 
 ## Cooldown Behavior Model
 

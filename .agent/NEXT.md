@@ -2,7 +2,7 @@
 
 ## Next Action
 
-Review and commit Ticket 3 stream cooldown detector, then start Ticket 4 interactive cooldown state recording.
+Review and commit Ticket 4 interactive cooldown state recording, then start Ticket 5 graceful pause.
 
 ## Target Files
 
@@ -24,7 +24,7 @@ Review and commit Ticket 3 stream cooldown detector, then start Ticket 4 interac
 
 - Do not change watchdog core logic.
 - Do not change recovery mode semantics.
-- Keep Ticket 4 limited to recording cooldown state and snapshot; do not add wait/resume yet.
+- Keep Ticket 5 limited to graceful pause and user-confirmed shutdown; do not add wait/resume yet.
 - Keep `.agent` as a sanitized dogfood example only; do not commit runtime logs.
 
 ## First Command To Inspect
@@ -35,4 +35,4 @@ git status --short
 
 ## Stop Condition
 
-Stop if interactive cooldown recording would require changing cooldown watchdog semantics or Codex adapter command semantics.
+Stop if graceful pause would require hard-killing Codex by default or changing cooldown watchdog semantics.
