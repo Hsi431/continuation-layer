@@ -121,3 +121,19 @@ Related files:
 
 Consequence: After cooldown detection, normal input is blocked. Enter sends `SIGINT` to Codex.
 Ctrl-C aborts wrapper control and preserves `.agent` cooldown state.
+
+## Decision: Interactive cooldown resume uses top-level codex resume
+
+Reason: The interactive wrapper must return the user to a Codex TUI. `codex exec resume` is the
+non-interactive automation surface used by watchdog mode, not the right surface for an interactive
+terminal wrapper.
+
+Date: 2026-07-02
+
+Related files:
+
+- `src/interactive/shell-session.mjs`
+- `tests/interactive-runner.test.mjs`
+
+Consequence: Interactive resume prefers `codex resume <session_id>` and falls back to
+`codex resume --last`, recording `interactive_resume_target_provenance`.

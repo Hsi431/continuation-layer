@@ -7,6 +7,23 @@ import {
   STATUS_VALUES,
 } from './constants.mjs';
 
+const INTERACTIVE_SHELL_STATUS_VALUES = Object.freeze([
+  'idle',
+  'running',
+  'cooling_down',
+  'waiting_for_resume',
+  'resuming',
+  'exited',
+  'aborted',
+  'failed',
+]);
+
+const INTERACTIVE_RESUME_TARGET_PROVENANCE_VALUES = Object.freeze([
+  'explicit_session_id',
+  'codex_last',
+  'unknown',
+]);
+
 function isPlainObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -133,6 +150,20 @@ export function validateState(state) {
     }
   }
 
+  for (const key of [
+    'interactive_shell_started_at',
+    'interactive_shell_pid',
+    'interactive_shell_status',
+    'interactive_resume_target',
+    'interactive_resume_target_provenance',
+    'last_tty_event',
+    'last_detected_cooldown_text_hash',
+  ]) {
+    if (state[key] !== undefined && state[key] !== null && typeof state[key] !== 'string') {
+      pushTypeError(errors, 'state', key, 'a string or null');
+    }
+  }
+
   if (!Number.isInteger(state.watch_resume_count) || state.watch_resume_count < 0) {
     pushTypeError(errors, 'state', 'watch_resume_count', 'a non-negative integer');
   }
@@ -149,8 +180,13 @@ export function validateState(state) {
     pushTypeError(errors, 'state', 'next_resume_at', 'an ISO timestamp or null');
   }
 
-  for (const key of ['usage_window_started_at', 'cooldown_detected_at', 'watch_started_at']) {
-    if (state[key] !== null && !isIsoDate(state[key])) {
+  for (const key of [
+    'usage_window_started_at',
+    'cooldown_detected_at',
+    'watch_started_at',
+    'interactive_shell_started_at',
+  ]) {
+    if (state[key] !== undefined && state[key] !== null && !isIsoDate(state[key])) {
       pushTypeError(errors, 'state', key, 'an ISO timestamp or null');
     }
   }
@@ -166,6 +202,28 @@ export function validateState(state) {
 
   if (state.last_watch_event !== null && !EVENT_VALUES.includes(state.last_watch_event)) {
     errors.push(`state.last_watch_event must be one of: ${EVENT_VALUES.join(', ')}`);
+  }
+
+  if (
+    state.interactive_shell_status !== undefined &&
+    state.interactive_shell_status !== null &&
+    !INTERACTIVE_SHELL_STATUS_VALUES.includes(state.interactive_shell_status)
+  ) {
+    errors.push(
+      `state.interactive_shell_status must be one of: ${INTERACTIVE_SHELL_STATUS_VALUES.join(', ')}`,
+    );
+  }
+
+  if (
+    state.interactive_resume_target_provenance !== undefined &&
+    state.interactive_resume_target_provenance !== null &&
+    !INTERACTIVE_RESUME_TARGET_PROVENANCE_VALUES.includes(
+      state.interactive_resume_target_provenance,
+    )
+  ) {
+    errors.push(
+      `state.interactive_resume_target_provenance must be one of: ${INTERACTIVE_RESUME_TARGET_PROVENANCE_VALUES.join(', ')}`,
+    );
   }
 
   return errors;

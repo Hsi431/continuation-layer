@@ -230,12 +230,19 @@ test('interactive shell records cooldown state, snapshot, event, and wrapper mes
   assert.equal(state.next_resume_at, '2026-06-29T00:15:00.000Z');
   assert.equal(state.cooldown_detected_at, '2026-06-29T00:00:00.000Z');
   assert.equal(state.reset_time_provenance, 'provider_relative');
-  assert.equal(state.last_event, 'interactive_cooldown_detected');
+  assert.equal(state.last_event, 'interactive_shell_aborted');
   assert.match(snapshot, /status: cooling_down/);
   assert.match(snapshot, /next resume at: 2026-06-29T00:15:00\.000Z/);
-  assert.equal(lastEvent.event, 'interactive_cooldown_detected');
-  assert.equal(lastEvent.source, 'interactive_shell');
-  assert.equal(lastEvent.next_resume_at, '2026-06-29T00:15:00.000Z');
+  assert.equal(
+    sessions.some(
+      (event) =>
+        event.event === 'interactive_cooldown_detected' &&
+        event.source === 'interactive_shell' &&
+        event.next_resume_at === '2026-06-29T00:15:00.000Z',
+    ),
+    true,
+  );
+  assert.equal(lastEvent.event, 'interactive_shell_aborted');
   assert.match(stderr.text, /\[continuity\] Cooldown detected\./);
   assert.match(stderr.text, /\[continuity\] Next resume at: 2026-06-29T00:15:00\.000Z/);
 });
@@ -243,6 +250,9 @@ test('interactive shell records cooldown state, snapshot, event, and wrapper mes
 test('interactive shell blocks normal input after cooldown and pauses on Enter', async () => {
   const repo = makeRepo();
   const stderr = new FakeOutput();
+  let nowMs = Date.parse('2026-06-29T00:00:00.000Z');
+  const commands = [];
+  const sleeps = [];
   const child = {
     kills: [],
     kill(signal) {
@@ -253,21 +263,37 @@ test('interactive shell blocks normal input after cooldown and pauses on Enter',
   const result = await runInteractiveShell({
     cwd: repo,
     stderr,
-    clock: () => new Date('2026-06-29T00:00:00.000Z'),
-    ptyRunner: async (_spec, options) => {
-      options.onData('usage limit reached; try again in 10 minutes');
-      assert.equal(options.onInput('typed after cooldown', { child }), false);
-      assert.deepEqual(child.kills, []);
-      assert.equal(options.onInput('\r', { child }), false);
+    clock: () => new Date(nowMs),
+    sleep: async (milliseconds) => {
+      sleeps.push(milliseconds);
+      nowMs += milliseconds;
+    },
+    ptyRunner: async (spec, options) => {
+      commands.push(spec);
+      if (commands.length === 1) {
+        options.onData('session_id: sess-tty\nusage limit reached; try again in 10 minutes');
+        assert.equal(options.onInput('typed after cooldown', { child }), false);
+        assert.deepEqual(child.kills, []);
+        assert.equal(options.onInput('\r', { child }), false);
+      }
       return { exitCode: 0, signal: null };
     },
   });
+  const state = readJson(join(repo, '.agent', 'state.json'));
 
   assert.equal(result.pauseConfirmed, true);
   assert.equal(result.abortRequested, false);
   assert.deepEqual(child.kills, ['SIGINT']);
+  assert.deepEqual(sleeps, [900000]);
+  assert.deepEqual(commands[1].args, ['resume', '-C', repo, 'sess-tty']);
+  assert.equal(result.interactiveResumes, 1);
+  assert.equal(state.status, 'checkpointed');
+  assert.equal(state.watch_resume_count, 1);
+  assert.equal(state.interactive_resume_target, 'sess-tty');
+  assert.equal(state.interactive_resume_target_provenance, 'explicit_session_id');
   assert.match(stderr.text, /Press Enter to pause and wait/);
   assert.match(stderr.text, /Pausing Codex until the cooldown reset window/);
+  assert.match(stderr.text, /Resuming Codex session: sess-tty/);
 });
 
 test('interactive shell preserves state and aborts wrapper on Ctrl-C after cooldown', async () => {
@@ -297,4 +323,36 @@ test('interactive shell preserves state and aborts wrapper on Ctrl-C after coold
   assert.deepEqual(child.kills, ['SIGINT']);
   assert.equal(state.status, 'cooling_down');
   assert.match(stderr.text, /Interactive wrapper aborted. State was preserved/);
+});
+
+test('interactive shell falls back to codex resume --last without a session id', async () => {
+  const repo = makeRepo();
+  const stderr = new FakeOutput();
+  let nowMs = Date.parse('2026-06-29T00:00:00.000Z');
+  const commands = [];
+  const child = {
+    kill() {},
+  };
+
+  await runInteractiveShell({
+    cwd: repo,
+    stderr,
+    clock: () => new Date(nowMs),
+    sleep: async (milliseconds) => {
+      nowMs += milliseconds;
+    },
+    ptyRunner: async (spec, options) => {
+      commands.push(spec);
+      if (commands.length === 1) {
+        options.onData('usage limit reached; try again in 10 minutes');
+        options.onInput('\r', { child });
+      }
+      return { exitCode: 0, signal: null };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.deepEqual(commands[1].args, ['resume', '-C', repo, '--last']);
+  assert.equal(state.interactive_resume_target, '--last');
+  assert.equal(state.interactive_resume_target_provenance, 'codex_last');
 });

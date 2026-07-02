@@ -1,10 +1,10 @@
 # Interactive Terminal Wrapper
 
-This document records Ticket 0 research plus Ticket 1 through Ticket 5 groundwork for the planned
+This document records Ticket 0 research plus Ticket 1 through Ticket 6 groundwork for the planned
 v0.2 interactive wrapper.
 
 Status: `continuity shell --dry-run`, the initial PTY runner foundation, and PTY output cooldown
-detection/state recording/graceful pause are implemented. Cooldown wait and interactive resume are
+detection/state recording/graceful pause/wait/resume are implemented. Existing cooldown adoption is
 not implemented yet.
 
 ## Scope
@@ -45,6 +45,21 @@ Ticket 5 stops normal input pass-through after interactive cooldown detection. T
 the user to press Enter to pause or Ctrl-C to abort. Enter sends `SIGINT` to Codex as a graceful exit
 request; Ctrl-C also sends `SIGINT` and leaves the already-written cooldown state intact. The wrapper
 does not hard-kill Codex by default.
+
+Ticket 6 waits until `next_resume_at` after the user confirms pause, then launches interactive
+resume. It prefers:
+
+```text
+codex resume <session_id>
+```
+
+and falls back to:
+
+```text
+codex resume --last
+```
+
+when no explicit session id is available.
 
 ## Codex CLI Observations
 
@@ -220,6 +235,15 @@ Ticket 5 coverage verifies:
 - Enter sends a graceful `SIGINT` pause request
 - Ctrl-C aborts wrapper control while preserving `cooling_down` state
 - raw PTY pass-through remains unchanged before cooldown detection
+
+Ticket 6 coverage verifies:
+
+- wait until `next_resume_at`
+- interactive resume uses `codex resume <session_id>`
+- missing session id falls back to `codex resume --last`
+- `interactive_resume_target_provenance` is recorded
+- `watch_resume_count` increments for automatic interactive resumes
+- PTY pass-through resumes in a second PTY run
 
 ## Cooldown Behavior Model
 

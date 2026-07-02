@@ -2,7 +2,7 @@
 
 ## Next Action
 
-Review and commit Ticket 5 graceful pause, then start Ticket 6 wait and interactive resume.
+Review and commit Ticket 6 wait/resume, then start Ticket 7 existing cooldown adoption.
 
 ## Target Files
 
@@ -24,7 +24,7 @@ Review and commit Ticket 5 graceful pause, then start Ticket 6 wait and interact
 
 - Do not change watchdog core logic.
 - Do not change recovery mode semantics.
-- Keep Ticket 6 focused on wait and interactive resume; do not add existing cooldown adoption yet.
+- Keep Ticket 7 focused on adopting existing interactive `cooling_down`; do not add extra dashboard or wrapper UI.
 - Keep `.agent` as a sanitized dogfood example only; do not commit runtime logs.
 
 ## First Command To Inspect
@@ -35,4 +35,4 @@ git status --short
 
 ## Stop Condition
 
-Stop if wait/resume would require changing Codex adapter command semantics or bypassing cooldown timing.
+Stop if adoption would start a new Codex task while state is already `cooling_down`.
