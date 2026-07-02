@@ -26,8 +26,10 @@ npm run pack:check
 - Install section lists Node >= 20, Codex CLI, and git requirements.
 - Safety boundaries still say no account rotation, no provider-limit bypass, no long hook sleeps, and no auto commit.
 - README recommends `continuity watch` for long-running tasks and labels `continuity start` as manual one-shot mode.
-- README separates recommended watch mode, manual start/resume mode, and planned interactive terminal wrapper work.
+- README separates recommended watch mode, manual start/resume mode, and experimental interactive terminal wrapper work.
 - `docs/COOLDOWN_WATCHDOG.md` documents reset provenance, direct Codex limitations, snapshot policy, circuit breakers, and Ctrl-C behavior.
+- `docs/INTERACTIVE_WRAPPER.md` documents Linux-first experimental interactive wrapper behavior.
+- `docs/SMOKE_INTERACTIVE.md` documents manual interactive smoke testing and troubleshooting.
 - Cooldown same-session recovery treats stale semantic handoff as a warning, while context continuation and overnight child continuation remain strict.
 - Known limitations clearly label Claude Code as future/v1.
 - Known limitations clearly say direct `codex` processes cannot be monitored.

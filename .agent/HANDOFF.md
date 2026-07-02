@@ -18,7 +18,7 @@ None.
 
 ## Status
 
-v0.2 interactive wrapper groundwork is active. Ticket 0 research through Ticket 8 docs/smoke checklist are complete in the working tree. The v0.1 cooldown watchdog core remains unchanged.
+v0.2 interactive wrapper groundwork is active. Ticket 0 research through Ticket 9 release preview validation are complete in the working tree. The v0.1 cooldown watchdog core remains unchanged.
 
 ## Goal
 
@@ -26,7 +26,7 @@ Build a Linux-first experimental interactive wrapper without changing cooldown w
 
 ## Current Stage
 
-Ticket 8 complete; next ticket is release preview validation and self-review.
+Ticket 9 complete; next step is push and CI review.
 
 ## What Changed
 
@@ -56,6 +56,9 @@ Ticket 8 complete; next ticket is release preview validation and self-review.
 - Updated README and README.zh-TW with experimental `continuity shell` guidance.
 - Added `docs/SMOKE_INTERACTIVE.md` with Linux-first manual smoke checklist and troubleshooting.
 - Added docs tests for interactive wrapper limitations.
+- Added `docs/releases/v0.2.0.md` preview release notes.
+- Updated release checklist for experimental interactive wrapper docs and smoke coverage.
+- Ran full validation from clean install.
 
 ## Files Touched
 
@@ -81,7 +84,7 @@ Ticket 8 complete; next ticket is release preview validation and self-review.
 
 ## Current Git State Summary
 
-Branch is ahead by the Ticket 0/1 commit. Ticket 2 changes are uncommitted. Run `git status --short` before editing or publishing.
+Branch is ahead of origin with v0.2 interactive wrapper commits. Run `git status --short` before publishing.
 
 ## Tests Run
 
@@ -100,19 +103,19 @@ Passed.
 
 - Real Codex TUI smoke was not completed in this tool environment because it lacks a normal interactive terminal.
 - Interactive cooldown recording, graceful pause, wait/resume, and existing interactive `cooling_down` adoption are implemented.
+- CI still needs to run after push.
 - Real provider smoke tests remain opt-in and are not part of CI.
 - Provider CLI output and session-id extraction can change.
 - Direct `codex` processes cannot be adopted after the fact.
 
 ## Unfinished Work
 
-- Ticket 9: full validation, release preview self-review, and push.
 - Manual Linux TTY smoke for `continuity shell`.
 
 ## Next Exact Steps
 
-1. Review and commit Ticket 8 changes if accepted.
-2. Run Ticket 9 validation and self-review before push.
+1. Push the v0.2 interactive wrapper commits.
+2. Review CI status before tagging or publishing.
 3. Run manual Linux TTY smoke before claiming the interactive runtime path fully accepted.
 
 ## Do Not Redo

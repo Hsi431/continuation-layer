@@ -2,7 +2,7 @@
 
 ## Next Action
 
-Review and commit Ticket 8 docs and smoke checklist, then run Ticket 9 validation and self-review.
+Push the v0.2 interactive wrapper commits and review CI.
 
 ## Target Files
 
@@ -24,7 +24,8 @@ Review and commit Ticket 8 docs and smoke checklist, then run Ticket 9 validatio
 
 - Do not change watchdog core logic.
 - Do not change recovery mode semantics.
-- Run full validation before push; do not tag or publish in this pass.
+- Do not tag or publish in this pass.
+- Wait for CI before any release tag.
 - Keep `.agent` as a sanitized dogfood example only; do not commit runtime logs.
 
 ## First Command To Inspect
@@ -35,4 +36,4 @@ git status --short
 
 ## Stop Condition
 
-Stop if validation fails, docs overclaim support, or worktree contains uncommitted runtime residue.
+Stop if push fails or CI reports a regression.
