@@ -8,7 +8,7 @@ import {
   writeSnapshotForState,
 } from '../core/agent-state.mjs';
 import { paths } from '../core/files.mjs';
-import { resolveRepoRoot } from '../core/git.mjs';
+import { resolveRepoRoot, tryResolveRepoRoot } from '../core/git.mjs';
 import { RECOVERY_MODES, runRecoveryCheck } from '../core/recovery.mjs';
 import { getProviderAdapter } from '../providers/adapter.mjs';
 import { runCommand } from './process-runner.mjs';
@@ -140,7 +140,15 @@ export async function watchManagedSession({
   signal = null,
   recoveryCheck = runRecoveryCheck,
 } = {}) {
-  const repoRoot = resolveRepoRoot(cwd);
+  const repoRoot = tryResolveRepoRoot(cwd);
+  if (!repoRoot) {
+    throw new Error(
+      [
+        'continuity watch requires a git repository because it writes .agent state and uses git recovery.',
+        'Use continuity shell for global interactive mode.',
+      ].join('\n'),
+    );
+  }
   const { config, state } = loadAgentState(repoRoot);
   const providerAdapter = adapter ?? getProviderAdapter(config.provider);
   const startedAt = clock().toISOString();

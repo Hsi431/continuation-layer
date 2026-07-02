@@ -289,6 +289,18 @@ test('watch waits through cooldown and resumes the same session automatically', 
   );
 });
 
+test('watch rejects non-git directories with shell guidance', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'continuity-watch-no-git-'));
+
+  await assert.rejects(
+    watchManagedSession({
+      cwd: dir,
+      prompt: 'work',
+    }),
+    /continuity watch requires a git repository.*Use continuity shell for global interactive mode/s,
+  );
+});
+
 test('watch auto-resumes after 5h cooldown even when handoff is stale', async () => {
   const repo = makeRepo();
   const staleAt = new Date('2026-06-29T00:00:00.000Z');

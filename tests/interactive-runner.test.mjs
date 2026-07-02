@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -15,6 +15,10 @@ function makeRepo() {
   execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
   initAgent({ cwd: dir, taskId: 'task-interactive' });
   return dir;
+}
+
+function makeDir(prefix = 'continuity-global-shell-') {
+  return mkdtempSync(join(tmpdir(), prefix));
 }
 
 function readJson(path) {
@@ -212,11 +216,200 @@ test('interactive shell builds a Codex TUI command through the PTY runner', asyn
   });
 
   assert.equal(result.exitCode, 0);
+  assert.equal(result.mode, 'project_shell');
   assert.deepEqual(commandSpec, {
     command: 'codex',
     args: ['-C', repo, 'explain repo'],
     cwd: repo,
   });
+  assert.equal(readJson(join(repo, '.agent', 'state.json')).interactive_shell_status, 'exited');
+});
+
+test('interactive shell outside git enters global mode and spawns Codex in cwd', async () => {
+  const cwd = makeDir();
+  const stateDir = makeDir('continuity-global-state-');
+  const stderr = new FakeOutput();
+  let commandSpec = null;
+
+  const result = await runInteractiveShell({
+    cwd,
+    globalStateDir: stateDir,
+    stderr,
+    ptyRunner: async (spec) => {
+      commandSpec = spec;
+      return { exitCode: 0, signal: null };
+    },
+  });
+  const state = readJson(join(stateDir, 'global-shell-state.json'));
+
+  assert.equal(result.mode, 'global_shell');
+  assert.deepEqual(commandSpec, {
+    command: 'codex',
+    args: ['-C', cwd],
+    cwd,
+  });
+  assert.equal(state.mode, 'global_shell');
+  assert.equal(state.cwd, cwd);
+  assert.equal(state.status, 'idle');
+  assert.equal(existsSync(join(cwd, '.agent')), false);
+  assert.match(stderr.text, /No git repository found/);
+  assert.match(stderr.text, /Starting Global Shell Mode/);
+  assert.match(stderr.text, /Project handoff, git recovery, and \.agent state are disabled/);
+});
+
+test('interactive shell outside git records cooldown in global state without .agent', async () => {
+  const cwd = makeDir();
+  const stateDir = makeDir('continuity-global-state-');
+  const child = {
+    kill() {},
+  };
+
+  const result = await runInteractiveShell({
+    cwd,
+    globalStateDir: stateDir,
+    clock: () => new Date('2026-06-29T00:00:00.000Z'),
+    ptyRunner: async (_spec, options) => {
+      options.onData('usage limit reached; try again in 10 minutes');
+      options.onInput('\u0003', { child });
+      return { exitCode: null, signal: 'SIGINT' };
+    },
+  });
+  const state = readJson(join(stateDir, 'global-shell-state.json'));
+  const sessions = readFileSync(join(stateDir, 'global-shell-sessions.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map(JSON.parse);
+
+  assert.equal(result.mode, 'global_shell');
+  assert.equal(state.mode, 'global_shell');
+  assert.equal(state.status, 'cooling_down');
+  assert.equal(state.cwd, cwd);
+  assert.equal(state.next_resume_at, '2026-06-29T00:15:00.000Z');
+  assert.equal(state.cooldown_detected_at, '2026-06-29T00:00:00.000Z');
+  assert.equal(state.reset_time_provenance, 'provider_relative');
+  assert.equal(existsSync(join(cwd, '.agent')), false);
+  assert.equal(
+    sessions.some(
+      (event) =>
+        event.event === 'interactive_cooldown_detected' &&
+        event.mode === 'global_shell' &&
+        event.next_resume_at === '2026-06-29T00:15:00.000Z',
+    ),
+    true,
+  );
+});
+
+test('global shell resumes with codex resume --last when no session id is detected', async () => {
+  const cwd = makeDir();
+  const stateDir = makeDir('continuity-global-state-');
+  let nowMs = Date.parse('2026-06-29T00:00:00.000Z');
+  const commands = [];
+  const sleeps = [];
+
+  await runInteractiveShell({
+    cwd,
+    globalStateDir: stateDir,
+    clock: () => new Date(nowMs),
+    sleep: async (milliseconds) => {
+      sleeps.push(milliseconds);
+      nowMs += milliseconds;
+    },
+    ptyRunner: async (spec, options) => {
+      commands.push(spec);
+      if (commands.length === 1) {
+        options.onData('usage limit reached; try again in 10 minutes');
+      }
+      return { exitCode: 0, signal: null };
+    },
+  });
+  const state = readJson(join(stateDir, 'global-shell-state.json'));
+
+  assert.deepEqual(sleeps, [900000]);
+  assert.deepEqual(commands[0].args, ['-C', cwd]);
+  assert.deepEqual(commands[1].args, ['resume', '-C', cwd, '--last']);
+  assert.equal(state.status, 'idle');
+  assert.equal(state.interactive_resume_target, '--last');
+  assert.equal(state.interactive_resume_target_provenance, 'codex_last');
+  assert.equal(existsSync(join(cwd, '.agent')), false);
+});
+
+test('global shell resumes explicit session id when detected', async () => {
+  const cwd = makeDir();
+  const stateDir = makeDir('continuity-global-state-');
+  let nowMs = Date.parse('2026-06-29T00:00:00.000Z');
+  const commands = [];
+
+  await runInteractiveShell({
+    cwd,
+    globalStateDir: stateDir,
+    clock: () => new Date(nowMs),
+    sleep: async (milliseconds) => {
+      nowMs += milliseconds;
+    },
+    ptyRunner: async (spec, options) => {
+      commands.push(spec);
+      if (commands.length === 1) {
+        options.onData('session_id: sess-global\nusage limit reached; try again in 10 minutes');
+      }
+      return { exitCode: 0, signal: null };
+    },
+  });
+  const state = readJson(join(stateDir, 'global-shell-state.json'));
+
+  assert.deepEqual(commands[1].args, ['resume', '-C', cwd, 'sess-global']);
+  assert.equal(state.interactive_resume_target, 'sess-global');
+  assert.equal(state.interactive_resume_target_provenance, 'explicit_session_id');
+});
+
+test('global shell marks best-effort resume --last failure clearly', async () => {
+  const cwd = makeDir();
+  const stateDir = makeDir('continuity-global-state-');
+  const stderr = new FakeOutput();
+  let nowMs = Date.parse('2026-06-29T00:00:00.000Z');
+  const commands = [];
+
+  const result = await runInteractiveShell({
+    cwd,
+    globalStateDir: stateDir,
+    stderr,
+    clock: () => new Date(nowMs),
+    sleep: async (milliseconds) => {
+      nowMs += milliseconds;
+    },
+    ptyRunner: async (spec, options) => {
+      commands.push(spec);
+      if (commands.length === 1) {
+        options.onData('usage limit reached; try again in 10 minutes');
+        return { exitCode: 0, signal: null };
+      }
+
+      return { exitCode: 2, signal: null };
+    },
+  });
+  const state = readJson(join(stateDir, 'global-shell-state.json'));
+
+  assert.equal(result.resumeLastFailed, true);
+  assert.deepEqual(commands[1].args, ['resume', '-C', cwd, '--last']);
+  assert.equal(state.status, 'failed');
+  assert.match(stderr.text, /codex resume --last failed in Global Shell Mode/);
+});
+
+test('interactive shell require-repo rejects non-git directories', async () => {
+  const cwd = makeDir();
+  let started = false;
+
+  await assert.rejects(
+    runInteractiveShell({
+      cwd,
+      requireRepo: true,
+      ptyRunner: async () => {
+        started = true;
+        return { exitCode: 0, signal: null };
+      },
+    }),
+    /continuity must run inside a git repository/,
+  );
+  assert.equal(started, false);
 });
 
 test('interactive shell records cooldown state, snapshot, event, and wrapper message', async () => {

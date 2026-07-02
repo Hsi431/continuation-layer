@@ -21,7 +21,14 @@ import {
 function parseArgs(argv) {
   const args = [...argv];
   const command = args.shift() ?? 'help';
-  const options = { json: false, dryRun: false, allowEarly: false, yes: false, promptParts: [] };
+  const options = {
+    json: false,
+    dryRun: false,
+    allowEarly: false,
+    yes: false,
+    requireRepo: false,
+    promptParts: [],
+  };
 
   while (args.length > 0) {
     const arg = args.shift();
@@ -33,6 +40,8 @@ function parseArgs(argv) {
       options.allowEarly = true;
     } else if (arg === '--yes') {
       options.yes = true;
+    } else if (arg === '--require-repo') {
+      options.requireRepo = true;
     } else if (arg === '--task-id') {
       options.taskId = args.shift();
     } else if (arg === '--provider') {
@@ -55,7 +64,7 @@ Commands:
   init                 Initialize .agent in the current git repo
   status [--json]      Show current durable state
   snapshot             Write .agent/AUTO_SNAPSHOT.md
-  shell [prompt]       Start Codex interactive TUI under Continuation Layer wrapper
+  shell [prompt]       Start Codex interactive TUI; falls back to Global Shell Mode outside git
   watch [prompt]       Start provider CLI under long-lived cooldown watchdog
   start [prompt]       Manual one-shot provider run under supervisor
   resume               Resume a cooling_down task under supervisor
@@ -70,6 +79,7 @@ Options:
   --provider <name>    Provider for init; default codex
   --json               Machine-readable status output
   --dry-run            Print provider command without executing start/watch/shell/resume/continue
+  --require-repo       For shell, fail outside git instead of using Global Shell Mode
   --allow-early        Resume before next_resume_at
   --yes                Confirm child continuation startup
 
@@ -204,8 +214,23 @@ function printArchiveResult(label, result) {
   console.log(`archived snapshot: ${result.archive.snapshot}`);
 }
 
-function dryRunCommand(kind, prompt) {
-  const repoRoot = resolveRepoRoot(process.cwd());
+function dryRunCommand(kind, prompt, { requireRepo = false, cwd = process.cwd() } = {}) {
+  let repoRoot = null;
+  try {
+    repoRoot = resolveRepoRoot(cwd);
+  } catch (error) {
+    if (kind === 'shell' && !requireRepo) {
+      const adapter = getProviderAdapter('codex');
+      return adapter.startSessionCommand({ repoRoot: cwd, prompt, nonInteractive: false });
+    }
+
+    if (kind === 'watch') {
+      throw new Error(watchRequiresRepoMessage());
+    }
+
+    throw error;
+  }
+
   const { config, state } = loadAgentState(repoRoot);
   const adapter = getProviderAdapter(config.provider);
 
@@ -231,6 +256,13 @@ function dryRunCommand(kind, prompt) {
     prompt: adapter.makeResumePrompt({ state, snapshotPath: state.last_snapshot_path }),
     nonInteractive: true,
   });
+}
+
+function watchRequiresRepoMessage() {
+  return [
+    'continuity watch requires a git repository because it writes .agent state and uses git recovery.',
+    'Use continuity shell for global interactive mode.',
+  ].join('\n');
 }
 
 async function main() {
@@ -334,11 +366,16 @@ async function main() {
 
   if (command === 'shell') {
     if (options.dryRun) {
-      printCommandLine(dryRunCommand('shell', options.prompt));
+      printCommandLine(
+        dryRunCommand('shell', options.prompt, { requireRepo: options.requireRepo }),
+      );
       return;
     }
 
-    const result = await runInteractiveShell({ prompt: options.prompt });
+    const result = await runInteractiveShell({
+      prompt: options.prompt,
+      requireRepo: options.requireRepo,
+    });
     process.exitCode = result.exitCode ?? 0;
     return;
   }

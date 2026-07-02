@@ -115,10 +115,37 @@ continuity shell
 ```
 
 `continuity shell` is Linux-first experimental v0.2 work. It launches Codex inside a PTY wrapper,
-observes terminal output for cooldown text, records `.agent` cooldown state, waits through reset
-windows after Codex exits or user-confirmed pause, and resumes with interactive `codex resume`.
+observes terminal output for cooldown text, waits through reset windows after Codex exits or
+user-confirmed pause, and resumes with interactive `codex resume`.
 
 It still cannot attach to an already-running direct `codex` process.
+
+## Shell modes
+
+`continuity shell` auto-detects where it is running:
+
+| Location                   | Mode               | State                           |
+| -------------------------- | ------------------ | ------------------------------- |
+| Inside a git repository    | Project Shell Mode | repo-local `.agent/` continuity |
+| Outside any git repository | Global Shell Mode  | user-level global shell state   |
+
+Project Shell Mode provides the full project continuity path: repo root detection, `.agent` state,
+mechanical snapshots, git status/diff recovery, interactive event recording, cooldown wait, and
+interactive resume.
+
+Global Shell Mode is only a cooldown wrapper for everyday interactive Codex usage. It launches Codex
+in the current working directory, detects cooldown text from PTY output, records minimal global shell
+state, waits until `next_resume_at`, and resumes with `codex resume <session_id>` when a session id
+was detected or `codex resume --last` as a best-effort fallback.
+
+Global Shell Mode does **not** provide `.agent` handoff, git recovery, semantic continuation,
+overnight continuation, project snapshots, or child continuation.
+
+To require full project continuity and reject global fallback:
+
+```sh
+continuity shell --require-repo
+```
 
 ---
 
@@ -347,10 +374,12 @@ continuity watch "finish this task"
 ```sh
 continuity shell
 continuity shell "explain this repo"
+continuity shell --require-repo
 ```
 
 This is Linux-first experimental interactive wrapper support. Use `continuity watch` for
-non-interactive long-running tasks.
+non-interactive long-running tasks. Outside git repositories, `continuity shell` enters Global Shell
+Mode and stores only minimal shell cooldown state outside the project.
 
 ### Run once
 

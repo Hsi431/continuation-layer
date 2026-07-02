@@ -186,3 +186,39 @@ Related files:
 Consequence: After Enter sends `SIGINT`, the wrapper waits for a grace timeout. If Codex still has
 not exited, the wrapper aborts safely, leaves `cooling_down` state intact, and tells the user to
 exit Codex manually before rerunning `continuity shell`.
+
+## Decision: Global Shell Mode is cooldown wrapping, not project continuity
+
+Reason: `continuity shell` is meant to replace everyday `codex` usage and must run outside git
+repositories, but project recovery features require `.agent/` and git state.
+
+Date: 2026-07-02
+
+Related files:
+
+- `src/interactive/shell-session.mjs`
+- `src/interactive/global-shell-state.mjs`
+- `bin/continuity.mjs`
+- `tests/interactive-runner.test.mjs`
+- `tests/supervisor.test.mjs`
+- `docs/INTERACTIVE_WRAPPER.md`
+
+Consequence: Outside git, `continuity shell` stores minimal state under the user-level
+Continuation Layer state directory and only supports cooldown detection, waiting, and best-effort
+interactive Codex resume. It does not create `.agent/`, run git recovery, write project snapshots,
+or provide handoff/continuation/overnight semantics.
+
+## Decision: Keep watch repo-bound
+
+Reason: `continuity watch` writes `.agent` state and depends on git recovery checks.
+
+Date: 2026-07-02
+
+Related files:
+
+- `src/supervisor/supervisor.mjs`
+- `bin/continuity.mjs`
+- `tests/supervisor.test.mjs`
+
+Consequence: `continuity watch` still fails outside git and points users to `continuity shell` for
+global interactive cooldown wrapping.

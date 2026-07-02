@@ -12,6 +12,20 @@ git commit --allow-empty -m "Initial smoke repo"
 continuity init --task-id interactive-smoke
 ```
 
+Use a disposable non-git directory when testing Global Shell Mode:
+
+```sh
+mkdir -p /tmp/continuity-shell-global-test
+cd /tmp/continuity-shell-global-test
+continuity shell
+```
+
+Expected:
+
+- Global Shell Mode notice appears;
+- Codex TUI opens in the current directory;
+- no `.agent/` directory is created.
+
 ## 1. Dry Run
 
 ```sh
@@ -23,9 +37,10 @@ Expected:
 
 - command prints a top-level interactive Codex command;
 - no Codex process starts;
-- no `.agent` cooldown state is written.
+- no `.agent` cooldown state is written in Project Shell Mode;
+- outside git, the command uses Global Shell Mode and targets the current working directory.
 
-## 2. Open Codex TUI
+## 2. Open Codex TUI In Project Shell Mode
 
 ```sh
 continuity shell
@@ -35,6 +50,7 @@ Expected:
 
 - Codex opens in an interactive terminal UI;
 - typing works normally before cooldown detection;
+- repo-local `.agent` state records interactive shell events;
 - exiting Codex restores terminal raw mode.
 
 If the terminal is left in a bad state:
@@ -98,6 +114,21 @@ Expected:
 - wrapper does not start a new Codex task;
 - if `next_resume_at` is in the future, wrapper waits;
 - if `next_resume_at` is in the past, wrapper resumes immediately.
+
+## 7. Global Shell Mode
+
+```sh
+mkdir -p /tmp/continuity-shell-global-test
+cd /tmp/continuity-shell-global-test
+continuity shell
+```
+
+Expected:
+
+- the Global Shell Mode notice appears before Codex starts;
+- Codex TUI opens;
+- cooldown detection, waiting, and best-effort `codex resume --last` remain enabled;
+- `.agent/` is not created.
 
 ## Troubleshooting
 

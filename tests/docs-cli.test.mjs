@@ -7,8 +7,9 @@ test('CLI help documents watch mode and direct Codex limitation', () => {
 
   assert.match(
     helpSource,
-    /shell \[prompt\]\s+Start Codex interactive TUI under Continuation Layer wrapper/,
+    /shell \[prompt\]\s+Start Codex interactive TUI; falls back to Global Shell Mode outside git/,
   );
+  assert.match(helpSource, /--require-repo\s+For shell, fail outside git/);
   assert.match(
     helpSource,
     /watch \[prompt\]\s+Start provider CLI under long-lived cooldown watchdog/,
@@ -57,6 +58,8 @@ test('shell dry-run uses the interactive provider command path', () => {
     helpSource,
     /adapter\.startSessionCommand\(\{ repoRoot, prompt, nonInteractive: false \}\)/,
   );
-  assert.match(helpSource, /printCommandLine\(dryRunCommand\('shell', options\.prompt\)\)/);
-  assert.match(helpSource, /runInteractiveShell\(\{ prompt: options\.prompt \}\)/);
+  assert.match(helpSource, /dryRunCommand\('shell', options\.prompt, \{ requireRepo/);
+  assert.match(helpSource, /runInteractiveShell\(\{\s+prompt: options\.prompt,/);
+  assert.match(helpSource, /requireRepo: options\.requireRepo/);
+  assert.match(helpSource, /arg === '--require-repo'/);
 });

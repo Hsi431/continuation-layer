@@ -20,6 +20,10 @@ export function resolveRepoRoot(cwd) {
   return root;
 }
 
+export function tryResolveRepoRoot(cwd) {
+  return runGit(['rev-parse', '--show-toplevel'], cwd);
+}
+
 export function readGitSnapshot(repoRoot) {
   const branch = runGit(['branch', '--show-current'], repoRoot) || 'unknown';
   const status = runGit(['status', '--short'], repoRoot);

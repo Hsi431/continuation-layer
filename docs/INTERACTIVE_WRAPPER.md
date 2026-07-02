@@ -15,7 +15,9 @@ v0.2 should add a Linux-first interactive wrapper for everyday Codex terminal us
 continuity shell
 ```
 
-The wrapper should launch Codex itself, connect it to a real pseudo-terminal, observe terminal output for cooldown text, write `.agent` state, wait through reset windows when it is safe to do so, and relaunch an interactive Codex resume path.
+The wrapper should launch Codex itself, connect it to a real pseudo-terminal, observe terminal
+output for cooldown text, write the right shell state for the current mode, wait through reset
+windows when it is safe to do so, and relaunch an interactive Codex resume path.
 
 The wrapper is not a provider-limit bypass. It must wait for provider reset windows and must not rotate accounts, fake reset times, auto commit, auto PR, or modify Codex itself.
 
@@ -66,6 +68,71 @@ when no explicit session id is available.
 Ticket 7 lets a restarted `continuity shell` adopt existing interactive `cooling_down` state. It
 does not start a new Codex task. It waits until the recorded `next_resume_at`, then launches
 interactive resume. If `next_resume_at` has already passed, it resumes immediately.
+
+## Shell Modes
+
+`continuity shell` has two modes.
+
+| Capability                  | Project Shell Mode          | Global Shell Mode                       |
+| --------------------------- | --------------------------- | --------------------------------------- |
+| Trigger                     | current directory is in git | current directory is not in git         |
+| Codex launch cwd            | repository root             | current working directory               |
+| State path                  | repo-local `.agent/`        | user-level global shell state           |
+| Cooldown detection          | yes                         | yes                                     |
+| Wait until `next_resume_at` | yes                         | yes                                     |
+| Explicit session-id resume  | yes                         | yes, only if detected from Codex output |
+| Fallback resume             | `codex resume --last`       | `codex resume --last`, best effort      |
+| Git status/diff recovery    | yes                         | no                                      |
+| Mechanical project snapshot | yes                         | no                                      |
+| Semantic handoff            | yes                         | no                                      |
+| Context/child continuation  | project continuity only     | no                                      |
+| Overnight automation        | project continuity only     | no                                      |
+
+Project Shell Mode is full project continuity. It uses the repository root, `.agent/state.json`,
+`.agent/AUTO_SNAPSHOT.md`, `sessions.jsonl`, git status/diff recovery, and the existing interactive
+cooldown adoption path.
+
+Global Shell Mode is a cooldown wrapper for everyday `codex`-style terminal usage outside git
+repositories. It does not create `.agent/`, does not run git recovery, and does not pretend that
+handoff or continuation state exists. It stores only minimal global shell state and resumes with:
+
+```text
+codex resume <session_id>
+```
+
+when a session id was detected, otherwise:
+
+```text
+codex resume --last
+```
+
+`--last` is best-effort. If that resume command exits nonzero, Global Shell Mode marks the global
+state as `failed` and aborts with a clear message.
+
+Global shell state is stored under:
+
+```text
+$XDG_STATE_HOME/continuation-layer/
+```
+
+or, when `XDG_STATE_HOME` is unset:
+
+```text
+~/.local/state/continuation-layer/
+```
+
+The current files are:
+
+```text
+global-shell-state.json
+global-shell-sessions.jsonl
+```
+
+Use this flag when global fallback is not wanted:
+
+```sh
+continuity shell --require-repo
+```
 
 ## Codex CLI Observations
 

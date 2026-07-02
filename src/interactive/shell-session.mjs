@@ -1,7 +1,15 @@
 import { loadAgentState, transitionState } from '../core/agent-state.mjs';
-import { resolveRepoRoot } from '../core/git.mjs';
+import { DEFAULT_CONFIG } from '../core/constants.mjs';
+import { tryResolveRepoRoot } from '../core/git.mjs';
 import { getProviderAdapter } from '../providers/adapter.mjs';
 import { recordInteractiveCooldown } from './cooldown-recorder.mjs';
+import {
+  globalShellPaths,
+  makeInitialGlobalShellState,
+  readGlobalShellState,
+  recordGlobalInteractiveCooldown,
+  writeGlobalShellState,
+} from './global-shell-state.mjs';
 import { runPtyCommand } from './pty-runner.mjs';
 import { createCooldownStreamDetector } from './stream-detector.mjs';
 
@@ -24,8 +32,73 @@ export async function runInteractiveShell({
   pauseGraceSleep = sleep,
   onEvent = () => {},
   pauseGraceSeconds = DEFAULT_INTERACTIVE_PAUSE_GRACE_SECONDS,
+  requireRepo = false,
+  globalStateDir = null,
 } = {}) {
-  const repoRoot = resolveRepoRoot(cwd);
+  const repoRoot = tryResolveRepoRoot(cwd);
+  if (!repoRoot) {
+    if (requireRepo) {
+      throw new Error('continuity must run inside a git repository');
+    }
+
+    return runGlobalInteractiveShell({
+      cwd,
+      prompt,
+      adapter,
+      ptyRunner,
+      signal,
+      stdin,
+      stdout,
+      stderr,
+      onCooldown,
+      streamDetector,
+      clock,
+      sleep,
+      pauseGraceSleep,
+      onEvent,
+      pauseGraceSeconds,
+      globalStateDir,
+    });
+  }
+
+  return runProjectInteractiveShell({
+    repoRoot,
+    prompt,
+    adapter,
+    ptyRunner,
+    signal,
+    stdin,
+    stdout,
+    stderr,
+    onCooldown,
+    streamDetector,
+    cooldownRecorder,
+    clock,
+    sleep,
+    pauseGraceSleep,
+    onEvent,
+    pauseGraceSeconds,
+  });
+}
+
+async function runProjectInteractiveShell({
+  repoRoot,
+  prompt,
+  adapter,
+  ptyRunner,
+  signal,
+  stdin,
+  stdout,
+  stderr,
+  onCooldown,
+  streamDetector,
+  cooldownRecorder,
+  clock,
+  sleep,
+  pauseGraceSleep,
+  onEvent,
+  pauseGraceSeconds,
+}) {
   const { config, state } = loadAgentState(repoRoot);
   const providerAdapter = adapter ?? getProviderAdapter(config.provider);
   if (state.status === 'cooling_down') {
@@ -113,6 +186,8 @@ export async function runInteractiveShell({
       );
       return {
         ...result,
+        mode: 'project_shell',
+        repoRoot,
         runs,
         interactiveResumes,
         pauseConfirmed: runs.some((run) => run.pauseConfirmed),
@@ -131,7 +206,7 @@ export async function runInteractiveShell({
         pauseAbortReason(result),
         clock().toISOString(),
       );
-      return { ...result, runs, interactiveResumes };
+      return { ...result, mode: 'project_shell', repoRoot, runs, interactiveResumes };
     }
 
     const latest = loadAgentState(repoRoot);
@@ -151,6 +226,8 @@ export async function runInteractiveShell({
       stderr?.write?.(`[continuity] Interactive watchdog stopped: ${limitReason}\n`);
       return {
         ...result,
+        mode: 'project_shell',
+        repoRoot,
         state: limitedState,
         runs,
         interactiveResumes,
@@ -167,6 +244,202 @@ export async function runInteractiveShell({
       onEvent,
     });
     commandSpec = resume.commandSpec;
+    interactiveResumes += 1;
+  }
+}
+
+async function runGlobalInteractiveShell({
+  cwd,
+  prompt,
+  adapter,
+  ptyRunner,
+  signal,
+  stdin,
+  stdout,
+  stderr,
+  onCooldown,
+  streamDetector,
+  clock,
+  sleep,
+  pauseGraceSleep,
+  onEvent,
+  pauseGraceSeconds,
+  globalStateDir,
+}) {
+  const providerAdapter = adapter ?? getProviderAdapter(DEFAULT_CONFIG.provider);
+  const filePaths = globalShellPaths({ stateDir: globalStateDir });
+  writeGlobalModeNotice(stderr);
+
+  const loadedState = readGlobalShellState({ stateDir: globalStateDir, cwd });
+  const adoptingCooldown = loadedState.status === 'cooling_down' && loadedState.cwd === cwd;
+  if (adoptingCooldown) {
+    assertAdoptableGlobalCooldown(loadedState);
+  }
+
+  const startedAt = clock().toISOString();
+  const startState = adoptingCooldown
+    ? loadedState
+    : makeInitialGlobalShellState({
+        cwd,
+        provider: providerAdapter.name ?? DEFAULT_CONFIG.provider,
+        timestamp: startedAt,
+      });
+  writeGlobalShellState({
+    stateDir: globalStateDir,
+    state: {
+      ...startState,
+      status: adoptingCooldown ? startState.status : 'running',
+    },
+    event: 'interactive_shell_started',
+    reason: 'global interactive shell started',
+    timestamp: startedAt,
+  });
+
+  const runs = [];
+  let interactiveResumes = 0;
+  let lastResumeTarget = null;
+  let commandSpec = null;
+
+  if (adoptingCooldown) {
+    const resume = await prepareGlobalInteractiveResume({
+      cwd,
+      stateDir: globalStateDir,
+      providerAdapter,
+      stderr,
+      clock,
+      sleep,
+      onEvent,
+    });
+    commandSpec = resume.commandSpec;
+    lastResumeTarget = resume.target;
+    interactiveResumes += 1;
+  } else {
+    commandSpec = providerAdapter.startSessionCommand({
+      repoRoot: cwd,
+      prompt,
+      nonInteractive: false,
+    });
+  }
+
+  while (true) {
+    const result = await runInteractivePtyOnce({
+      repoRoot: cwd,
+      providerAdapter,
+      commandSpec,
+      ptyRunner,
+      signal,
+      stdin,
+      stdout,
+      stderr,
+      onCooldown,
+      streamDetector,
+      cooldownRecorder: (event) =>
+        recordGlobalInteractiveCooldown({
+          cwd,
+          stateDir: globalStateDir,
+          adapter: event.adapter,
+          cooldown: event.cooldown,
+          text: event.text,
+          now: event.now,
+        }),
+      clock,
+      sleep,
+      pauseGraceSleep,
+      pauseGraceSeconds,
+    });
+    runs.push(result);
+
+    if (!result.cooldown) {
+      const latest = readGlobalShellState({ stateDir: globalStateDir, cwd });
+      const resumeLastFailed =
+        lastResumeTarget?.provenance === 'codex_last' &&
+        typeof result.exitCode === 'number' &&
+        result.exitCode !== 0;
+      if (resumeLastFailed) {
+        const failedState = writeGlobalShellState({
+          stateDir: globalStateDir,
+          state: {
+            ...latest,
+            status: 'failed',
+          },
+          event: 'interactive_shell_failed',
+          reason: 'codex resume --last failed in global shell mode',
+          timestamp: clock().toISOString(),
+        });
+        stderr?.write?.(
+          '[continuity] codex resume --last failed in Global Shell Mode. Aborting best-effort resume.\n',
+        );
+        return {
+          ...result,
+          mode: 'global_shell',
+          state: failedState,
+          globalStatePath: filePaths.state,
+          runs,
+          interactiveResumes,
+          resumeLastFailed: true,
+        };
+      }
+
+      const exitedState = writeGlobalShellState({
+        stateDir: globalStateDir,
+        state: {
+          ...latest,
+          cwd,
+          provider: providerAdapter.name ?? latest.provider,
+          status: 'idle',
+          next_resume_at: null,
+          cooldown_detected_at: null,
+          reset_time_provenance: null,
+        },
+        event: 'interactive_shell_exited',
+        reason: 'global interactive shell exited',
+        timestamp: clock().toISOString(),
+      });
+      return {
+        ...result,
+        mode: 'global_shell',
+        state: exitedState,
+        globalStatePath: filePaths.state,
+        runs,
+        interactiveResumes,
+        pauseConfirmed: runs.some((run) => run.pauseConfirmed),
+        abortRequested: runs.some((run) => run.abortRequested),
+      };
+    }
+
+    if (result.abortRequested || result.pauseGraceTimedOut || !result.pauseConfirmed) {
+      const latest = readGlobalShellState({ stateDir: globalStateDir, cwd });
+      const abortedState = writeGlobalShellState({
+        stateDir: globalStateDir,
+        state: {
+          ...latest,
+          status: latest.status === 'cooling_down' ? 'cooling_down' : 'aborted',
+        },
+        event: 'interactive_shell_aborted',
+        reason: pauseAbortReason(result),
+        timestamp: clock().toISOString(),
+      });
+      return {
+        ...result,
+        mode: 'global_shell',
+        state: abortedState,
+        globalStatePath: filePaths.state,
+        runs,
+        interactiveResumes,
+      };
+    }
+
+    const resume = await prepareGlobalInteractiveResume({
+      cwd,
+      stateDir: globalStateDir,
+      providerAdapter,
+      stderr,
+      clock,
+      sleep,
+      onEvent,
+    });
+    commandSpec = resume.commandSpec;
+    lastResumeTarget = resume.target;
     interactiveResumes += 1;
   }
 }
@@ -382,6 +655,67 @@ async function prepareInteractiveResume({
   };
 }
 
+async function prepareGlobalInteractiveResume({
+  cwd,
+  stateDir,
+  providerAdapter,
+  stderr,
+  clock,
+  sleep,
+  onEvent,
+}) {
+  const latest = readGlobalShellState({ stateDir, cwd });
+  assertAdoptableGlobalCooldown(latest);
+
+  await waitUntilTimestamp(latest.next_resume_at, {
+    clock,
+    sleep,
+    heartbeatMs: DEFAULT_CONFIG.watch_heartbeat_minutes * 60 * 1000,
+    onHeartbeat: (event) => {
+      stderr?.write?.(`[continuity] Waiting: ${formatDuration(event.remainingMs)} remaining\n`);
+      onEvent({ type: 'interactive_heartbeat', ...event });
+    },
+  });
+
+  const afterWait = readGlobalShellState({ stateDir, cwd });
+  const target = selectInteractiveResumeTarget(afterWait);
+  writeGlobalShellState({
+    stateDir,
+    state: {
+      ...afterWait,
+      status: 'resuming',
+      interactive_resume_target: target.value,
+      interactive_resume_target_provenance: target.provenance,
+    },
+    event: 'interactive_shell_resuming',
+    reason: `global interactive shell resuming with ${target.value}`,
+    timestamp: clock().toISOString(),
+  });
+
+  if (target.provenance === 'codex_last') {
+    stderr?.write?.('[continuity] Resuming Codex with codex resume --last (best effort).\n');
+  } else {
+    stderr?.write?.(`[continuity] Resuming Codex session: ${target.value}\n`);
+  }
+  onEvent({ type: 'interactive_resuming', target: target.value, provenance: target.provenance });
+
+  return {
+    target,
+    commandSpec: providerAdapter.resumeSessionCommand({
+      repoRoot: cwd,
+      sessionId: target.sessionId,
+      nonInteractive: false,
+    }),
+  };
+}
+
+function writeGlobalModeNotice(stderr) {
+  stderr?.write?.('[continuity] No git repository found.\n');
+  stderr?.write?.('[continuity] Starting Global Shell Mode.\n');
+  stderr?.write?.('[continuity] Project handoff, git recovery, and .agent state are disabled.\n');
+  stderr?.write?.('[continuity] Cooldown detection and best-effort Codex resume remain enabled.\n');
+}
+
 function assertAdoptableInteractiveCooldown(state) {
   if (!state.next_resume_at) {
     throw new Error('Cannot adopt interactive cooldown: missing next_resume_at');
@@ -395,6 +729,12 @@ function assertAdoptableInteractiveCooldown(state) {
     throw new Error(
       'Cannot adopt cooling_down state with continuity shell; use continuity watch or continuity resume',
     );
+  }
+}
+
+function assertAdoptableGlobalCooldown(state) {
+  if (!state.next_resume_at) {
+    throw new Error('Cannot adopt global shell cooldown: missing next_resume_at');
   }
 }
 

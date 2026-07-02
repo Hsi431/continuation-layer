@@ -18,120 +18,101 @@ None.
 
 ## Status
 
-v0.2 interactive wrapper blocker fixes are in progress. The v0.1 cooldown watchdog core remains unchanged.
+Global Shell Mode for `continuity shell` is implemented, validated, smoke-tested, and ready to
+commit.
 
 ## Goal
 
-Build a Linux-first experimental interactive wrapper without changing cooldown watchdog or recovery semantics.
-
-## Current Stage
-
-Interactive cooldown edge cases fixed locally and full validation passed; next step is commit, push, and CI review.
+Allow `continuity shell` to run outside git repositories as an interactive Codex cooldown wrapper
+without weakening repo-bound project continuity or `continuity watch`.
 
 ## What Changed
 
-- Added `docs/INTERACTIVE_WRAPPER.md` with Ticket 0 research and Ticket 1/2 status.
-- Added `continuity shell --dry-run` to print the interactive Codex command.
-- Added `node-pty` as the selected PTY dependency.
-- Added `src/interactive/pty-runner.mjs` for PTY spawn, stdin/stdout pass-through, resize handling, raw mode, abort handling, and cleanup.
-- Added `src/interactive/shell-session.mjs` to build the Codex interactive command through the existing provider adapter.
-- Wired non-dry-run `continuity shell` to the PTY runner with a clear non-TTY failure path.
-- Added fake-PTY tests for pass-through, resize, cleanup, non-TTY failure, and command construction.
-- Added `src/interactive/stream-detector.mjs` for ANSI-stripped rolling-buffer cooldown detection.
-- Reused the Codex adapter's `detectCooldownError` instead of duplicating cooldown patterns.
-- Wired `runInteractiveShell` to tee PTY output into the detector and expose an `onCooldown` callback.
-- Added stream detector tests for plain text, ANSI-colored text, chunked output, false positives, one-shot event emission, and buffer cap behavior.
-- Added `src/interactive/cooldown-recorder.mjs` to write interactive cooldown state, next resume time, reset provenance, snapshot, and sessions event.
-- `runInteractiveShell` now records interactive cooldowns and prints wrapper cooldown metadata to stderr.
-- Added fake-PTY test coverage for interactive cooldown state/snapshot/event/wrapper message.
-- Added input gating after interactive cooldown detection.
-- Enter sends `SIGINT` to Codex as a graceful pause request; Ctrl-C aborts wrapper control while preserving state.
-- Added tests that normal input is blocked after cooldown and graceful/abort signals are sent without hard kill.
-- Added wait until `next_resume_at` after user-confirmed pause.
-- Added interactive resume command selection: explicit session id first, `codex resume --last` fallback.
-- Recorded `interactive_resume_target`, `interactive_resume_target_provenance`, and incremented `watch_resume_count` for interactive auto-resumes.
-- Added tests for same-session interactive resume and `--last` fallback.
-- Added adoption of existing interactive `cooling_down` state on `continuity shell` restart.
-- Added tests for adoption, immediate resume when `next_resume_at` is past, broken cooldown abort, and refusing non-interactive cooldown adoption.
-- Fixed cooldown output followed by child exit so it is treated as already paused and proceeds to wait/resume.
-- Added interactive pause grace timeout so a stuck Codex TUI cannot hang the wrapper forever after Enter.
-- Bumped package metadata to `0.2.0`.
-- Updated README and README.zh-TW with experimental `continuity shell` guidance.
-- Added `docs/SMOKE_INTERACTIVE.md` with Linux-first manual smoke checklist and troubleshooting.
-- Added docs tests for interactive wrapper limitations.
-- Added `docs/releases/v0.2.0.md` preview release notes.
-- Updated release checklist for experimental interactive wrapper docs and smoke coverage.
-- Ran full validation from clean install.
+- `continuity shell` now auto-detects Project Shell Mode inside git and Global Shell Mode outside
+  git.
+- Added `continuity shell --require-repo` to preserve the old repo-required failure behavior.
+- Added global shell state under `$XDG_STATE_HOME/continuation-layer/`, falling back to
+  `~/.local/state/continuation-layer/`.
+- Added global shell state files:
+  - `global-shell-state.json`
+  - `global-shell-sessions.jsonl`
+- Global mode launches Codex in the current working directory, records cooldown state, waits until
+  `next_resume_at`, resumes explicit detected session ids, and falls back to `codex resume --last`.
+- Global mode does not create `.agent/`, does not run git recovery, and does not claim handoff,
+  child continuation, project snapshots, or overnight automation.
+- `continuity watch` remains repo-bound and now fails outside git with guidance to use
+  `continuity shell` for global interactive mode.
+- README, interactive wrapper docs, and smoke docs now distinguish Project Shell Mode and Global
+  Shell Mode.
 
 ## Files Touched
 
 - `bin/continuity.mjs`
+- `README.md`
 - `docs/INTERACTIVE_WRAPPER.md`
 - `docs/SMOKE_INTERACTIVE.md`
-- `docs/releases/v0.2.0.md`
-- `package.json`
-- `package-lock.json`
-- `src/interactive/pty-runner.mjs`
+- `src/core/git.mjs`
+- `src/interactive/global-shell-state.mjs`
 - `src/interactive/shell-session.mjs`
-- `src/interactive/cooldown-recorder.mjs`
-- `src/interactive/stream-detector.mjs`
+- `src/supervisor/supervisor.mjs`
 - `tests/docs-cli.test.mjs`
 - `tests/interactive-runner.test.mjs`
-- `tests/stream-detector.test.mjs`
-
-## Important Decisions
-
-- The committed `.agent/` directory is an intentional sanitized dogfood example.
-- `.agent` must not contain provider-private session dumps, secrets, personal absolute paths, stale git status, or one-off runtime logs.
-- Long cooldown waits belong to the foreground supervisor, not hooks.
-- Cooldown same-session recovery may use stale semantic handoff as context, but child continuation remains strict.
-- `node-pty` is the real PTY runtime dependency for the Linux-first wrapper; tests use fake PTY adapters.
-- Interactive cooldown child exit is treated as a completed pause.
-- Interactive pause timeout preserves `cooling_down` state and does not hard-kill Codex by default.
-
-## Current Git State Summary
-
-Working tree has v0.2 blocker fixes and package metadata changes pending commit. Run `git status --short` before publishing.
+- `tests/supervisor.test.mjs`
+- `.agent/HANDOFF.md`
+- `.agent/NEXT.md`
+- `.agent/DECISIONS.md`
 
 ## Tests Run
 
+- `node --test tests/interactive-runner.test.mjs`
+- `node --test tests/supervisor.test.mjs`
+- `node --test tests/docs-cli.test.mjs`
+- `npm ci`
 - `npm run format:check`
 - `npm run check`
 - `npm test`
 - `npm run pack:check`
-- `npm ci`
 - `git diff --check`
 
 ## Test Result
 
 Passed.
 
+## Manual Smoke
+
+- Global mode dry-run in `/tmp/continuity-shell-global-test` printed
+  `codex -C /tmp/continuity-shell-global-test`.
+- Global mode real TTY smoke with temporary `CODEX_HOME` and `XDG_STATE_HOME` printed the Global
+  Shell Mode notice, reached the Codex login TUI, wrote global shell state under `/tmp`, and did not
+  create `.agent/`.
+- Project mode dry-run in `/home/fnata_claw/continuation-layer` printed
+  `codex -C /home/fnata_claw/continuation-layer`.
+- Project mode real TTY smoke in a disposable git repo reached the Codex login TUI and wrote
+  repo-local `.agent` interactive shell state.
+
+## Important Decisions
+
+- Global Shell Mode is intentionally a cooldown wrapper only.
+- Explicit session-id resume in global mode only uses ids detected from Codex output or already
+  recorded in an adopted global cooldown.
+- `codex resume --last` in global mode is best-effort and marks state `failed` if that resume exits
+  nonzero.
+- `continuity watch` remains repo-bound.
+
 ## Known Risks
 
-- Real Codex TUI smoke was not completed in this tool environment because it lacks a normal interactive terminal.
-- Interactive cooldown recording, graceful pause, wait/resume, and existing interactive `cooling_down` adoption are implemented.
-- CI still needs to run after push.
-- Real provider smoke tests remain opt-in and are not part of CI.
+- Real authenticated Codex task execution was not exercised; temporary `CODEX_HOME` smoke reached
+  the unauthenticated Codex login TUI.
 - Provider CLI output and session-id extraction can change.
-- Direct `codex` processes cannot be adopted after the fact.
-
-## Unfinished Work
-
-- Manual Linux TTY smoke for `continuity shell`.
+- Global Shell Mode has one minimal global state file and is not a multi-project project recovery
+  system.
 
 ## Next Exact Steps
 
-1. Commit the blocker fix and metadata changes.
-2. Push and review CI status before tagging or publishing.
-3. Run manual Linux TTY smoke before claiming the interactive runtime path fully accepted.
-
-## Do Not Redo
-
-- Do not change cooldown watchdog core logic during release hygiene.
-- Do not change recovery mode semantics.
-- Do not add Claude Code runtime support in v0.1 cleanup.
-- Do not commit provider-private logs or local runtime residue.
+1. Commit with `Support global interactive shell mode`.
+2. Push only if requested or approved.
+3. Review CI after push.
 
 ## Last Updated
 
-2026-07-03T00:00:00Z
+2026-07-02T23:50:00Z
