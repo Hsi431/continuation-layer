@@ -194,11 +194,24 @@ test('cooldown resume fails when git has unresolved conflicts', () => {
   let mergeStdout = '';
   let mergeStderr = '';
   try {
-    execFileSync('git', ['merge', '--no-commit', '--no-ff', 'feature'], {
-      cwd: repo,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    execFileSync(
+      'git',
+      [
+        '-c',
+        'user.email=test@example.com',
+        '-c',
+        'user.name=Test',
+        'merge',
+        '--no-commit',
+        '--no-ff',
+        'feature',
+      ],
+      {
+        cwd: repo,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
   } catch (error) {
     mergeStdout = error.stdout ?? '';
     mergeStderr = error.stderr ?? '';
