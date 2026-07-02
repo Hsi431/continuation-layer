@@ -149,11 +149,13 @@ test('pty runner passes input and output through and cleans up terminal state', 
       resizeEmitter,
       ptyFactory: pty.factory,
       onData: (chunk) => seen.push(chunk),
+      onInput: (chunk) => chunk !== 'blocked',
     },
   );
 
   pty.child.emitData('screen output');
   stdin.emit('data', Buffer.from('typed'));
+  stdin.emit('data', Buffer.from('blocked'));
   stdout.columns = 120;
   stdout.rows = 50;
   resizeEmitter.emit('SIGWINCH');
@@ -236,4 +238,63 @@ test('interactive shell records cooldown state, snapshot, event, and wrapper mes
   assert.equal(lastEvent.next_resume_at, '2026-06-29T00:15:00.000Z');
   assert.match(stderr.text, /\[continuity\] Cooldown detected\./);
   assert.match(stderr.text, /\[continuity\] Next resume at: 2026-06-29T00:15:00\.000Z/);
+});
+
+test('interactive shell blocks normal input after cooldown and pauses on Enter', async () => {
+  const repo = makeRepo();
+  const stderr = new FakeOutput();
+  const child = {
+    kills: [],
+    kill(signal) {
+      this.kills.push(signal);
+    },
+  };
+
+  const result = await runInteractiveShell({
+    cwd: repo,
+    stderr,
+    clock: () => new Date('2026-06-29T00:00:00.000Z'),
+    ptyRunner: async (_spec, options) => {
+      options.onData('usage limit reached; try again in 10 minutes');
+      assert.equal(options.onInput('typed after cooldown', { child }), false);
+      assert.deepEqual(child.kills, []);
+      assert.equal(options.onInput('\r', { child }), false);
+      return { exitCode: 0, signal: null };
+    },
+  });
+
+  assert.equal(result.pauseConfirmed, true);
+  assert.equal(result.abortRequested, false);
+  assert.deepEqual(child.kills, ['SIGINT']);
+  assert.match(stderr.text, /Press Enter to pause and wait/);
+  assert.match(stderr.text, /Pausing Codex until the cooldown reset window/);
+});
+
+test('interactive shell preserves state and aborts wrapper on Ctrl-C after cooldown', async () => {
+  const repo = makeRepo();
+  const stderr = new FakeOutput();
+  const child = {
+    kills: [],
+    kill(signal) {
+      this.kills.push(signal);
+    },
+  };
+
+  const result = await runInteractiveShell({
+    cwd: repo,
+    stderr,
+    clock: () => new Date('2026-06-29T00:00:00.000Z'),
+    ptyRunner: async (_spec, options) => {
+      options.onData('usage limit reached; try again in 10 minutes');
+      assert.equal(options.onInput('\u0003', { child }), false);
+      return { exitCode: null, signal: 'SIGINT' };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.equal(result.pauseConfirmed, false);
+  assert.equal(result.abortRequested, true);
+  assert.deepEqual(child.kills, ['SIGINT']);
+  assert.equal(state.status, 'cooling_down');
+  assert.match(stderr.text, /Interactive wrapper aborted. State was preserved/);
 });

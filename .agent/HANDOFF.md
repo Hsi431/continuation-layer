@@ -18,7 +18,7 @@ None.
 
 ## Status
 
-v0.2 interactive wrapper groundwork is active. Ticket 0 research, Ticket 1 `continuity shell --dry-run`, Ticket 2 PTY runner foundation, Ticket 3 PTY stream cooldown detector, and Ticket 4 interactive cooldown state recording are complete in the working tree. The v0.1 cooldown watchdog core remains unchanged.
+v0.2 interactive wrapper groundwork is active. Ticket 0 research, Ticket 1 `continuity shell --dry-run`, Ticket 2 PTY runner foundation, Ticket 3 PTY stream cooldown detector, Ticket 4 interactive cooldown state recording, and Ticket 5 graceful pause are complete in the working tree. The v0.1 cooldown watchdog core remains unchanged.
 
 ## Goal
 
@@ -26,7 +26,7 @@ Build a Linux-first experimental interactive wrapper without changing cooldown w
 
 ## Current Stage
 
-Ticket 4 complete; next ticket is graceful pause on interactive cooldown.
+Ticket 5 complete; next ticket is wait plus interactive resume.
 
 ## What Changed
 
@@ -44,6 +44,9 @@ Ticket 4 complete; next ticket is graceful pause on interactive cooldown.
 - Added `src/interactive/cooldown-recorder.mjs` to write interactive cooldown state, next resume time, reset provenance, snapshot, and sessions event.
 - `runInteractiveShell` now records interactive cooldowns and prints wrapper cooldown metadata to stderr.
 - Added fake-PTY test coverage for interactive cooldown state/snapshot/event/wrapper message.
+- Added input gating after interactive cooldown detection.
+- Enter sends `SIGINT` to Codex as a graceful pause request; Ctrl-C aborts wrapper control while preserving state.
+- Added tests that normal input is blocked after cooldown and graceful/abort signals are sent without hard kill.
 
 ## Files Touched
 
@@ -87,20 +90,20 @@ Passed.
 ## Known Risks
 
 - Real Codex TUI smoke was not completed in this tool environment because it lacks a normal interactive terminal.
-- Interactive cooldown recording is implemented, but graceful pause, wait, and resume are not.
+- Interactive cooldown recording and graceful pause are implemented, but wait/resume is not.
 - Real provider smoke tests remain opt-in and are not part of CI.
 - Provider CLI output and session-id extraction can change.
 - Direct `codex` processes cannot be adopted after the fact.
 
 ## Unfinished Work
 
-- Ticket 5: graceful pause on interactive cooldown.
+- Ticket 6: wait until `next_resume_at` and launch interactive `codex resume`.
 - Manual Linux TTY smoke for `continuity shell`.
 
 ## Next Exact Steps
 
-1. Review and commit Ticket 4 changes if accepted.
-2. Start Ticket 5 graceful pause on interactive cooldown.
+1. Review and commit Ticket 5 changes if accepted.
+2. Start Ticket 6 wait and interactive resume.
 3. Run manual Linux TTY smoke before claiming the interactive runtime path fully accepted.
 
 ## Do Not Redo

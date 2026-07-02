@@ -2,7 +2,7 @@
 
 ## Next Action
 
-Review and commit Ticket 4 interactive cooldown state recording, then start Ticket 5 graceful pause.
+Review and commit Ticket 5 graceful pause, then start Ticket 6 wait and interactive resume.
 
 ## Target Files
 
@@ -24,7 +24,7 @@ Review and commit Ticket 4 interactive cooldown state recording, then start Tick
 
 - Do not change watchdog core logic.
 - Do not change recovery mode semantics.
-- Keep Ticket 5 limited to graceful pause and user-confirmed shutdown; do not add wait/resume yet.
+- Keep Ticket 6 focused on wait and interactive resume; do not add existing cooldown adoption yet.
 - Keep `.agent` as a sanitized dogfood example only; do not commit runtime logs.
 
 ## First Command To Inspect
@@ -35,4 +35,4 @@ git status --short
 
 ## Stop Condition
 
-Stop if graceful pause would require hard-killing Codex by default or changing cooldown watchdog semantics.
+Stop if wait/resume would require changing Codex adapter command semantics or bypassing cooldown timing.

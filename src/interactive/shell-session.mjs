@@ -28,6 +28,9 @@ export async function runInteractiveShell({
     nonInteractive: false,
   });
   let cooldownRecord = null;
+  let waitingForPauseConfirmation = false;
+  let pauseConfirmed = false;
+  let abortRequested = false;
   const detector =
     streamDetector ??
     createCooldownStreamDetector({
@@ -41,6 +44,7 @@ export async function runInteractiveShell({
           now: clock(),
         });
         writeWrapperMessage(stderr, cooldownRecord);
+        waitingForPauseConfirmation = true;
         onCooldown?.({ ...event, record: cooldownRecord });
       },
     });
@@ -51,11 +55,35 @@ export async function runInteractiveShell({
     stdout,
     stderr,
     onData: (chunk) => detector.push(chunk),
+    onInput: (chunk, context) => {
+      if (!waitingForPauseConfirmation) {
+        return true;
+      }
+
+      if (chunk.includes('\u0003')) {
+        abortRequested = true;
+        context.child?.kill?.('SIGINT');
+        stderr?.write?.('[continuity] Interactive wrapper aborted. State was preserved.\n');
+        return false;
+      }
+
+      if (chunk.includes('\r') || chunk.includes('\n')) {
+        pauseConfirmed = true;
+        waitingForPauseConfirmation = false;
+        context.child?.kill?.('SIGINT');
+        stderr?.write?.('[continuity] Pausing Codex until the cooldown reset window.\n');
+        return false;
+      }
+
+      return false;
+    },
   });
-  return { ...result, cooldown: cooldownRecord };
+  return { ...result, cooldown: cooldownRecord, pauseConfirmed, abortRequested };
 }
 
 function writeWrapperMessage(stderr, record) {
   stderr?.write?.('[continuity] Cooldown detected.\n');
   stderr?.write?.(`[continuity] Next resume at: ${record.nextResumeAt}\n`);
+  stderr?.write?.('[continuity] Press Enter to pause and wait.\n');
+  stderr?.write?.('[continuity] Press Ctrl-C to abort wrapper and preserve state.\n');
 }

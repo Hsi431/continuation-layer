@@ -1,11 +1,11 @@
 # Interactive Terminal Wrapper
 
-This document records Ticket 0 research plus Ticket 1 through Ticket 4 groundwork for the planned
+This document records Ticket 0 research plus Ticket 1 through Ticket 5 groundwork for the planned
 v0.2 interactive wrapper.
 
 Status: `continuity shell --dry-run`, the initial PTY runner foundation, and PTY output cooldown
-detection/state recording are implemented. Graceful pause, wait, and interactive resume are not
-implemented yet.
+detection/state recording/graceful pause are implemented. Cooldown wait and interactive resume are
+not implemented yet.
 
 ## Scope
 
@@ -40,6 +40,11 @@ behavior.
 Ticket 4 records interactive cooldown state when that detector fires. It writes `cooling_down`
 state, `next_resume_at`, reset provenance, `.agent/AUTO_SNAPSHOT.md`, and a sessions event, then
 prints a wrapper message. It does not yet pause Codex, wait, or resume.
+
+Ticket 5 stops normal input pass-through after interactive cooldown detection. The wrapper prompts
+the user to press Enter to pause or Ctrl-C to abort. Enter sends `SIGINT` to Codex as a graceful exit
+request; Ctrl-C also sends `SIGINT` and leaves the already-written cooldown state intact. The wrapper
+does not hard-kill Codex by default.
 
 ## Codex CLI Observations
 
@@ -208,6 +213,13 @@ Ticket 4 coverage verifies that fake PTY cooldown output writes:
 - `.agent/AUTO_SNAPSHOT.md`
 - `interactive_cooldown_detected` sessions event
 - wrapper message on stderr
+
+Ticket 5 coverage verifies:
+
+- normal input is blocked after cooldown detection
+- Enter sends a graceful `SIGINT` pause request
+- Ctrl-C aborts wrapper control while preserving `cooling_down` state
+- raw PTY pass-through remains unchanged before cooldown detection
 
 ## Cooldown Behavior Model
 

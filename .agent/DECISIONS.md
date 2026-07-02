@@ -105,3 +105,19 @@ Related files:
 
 Consequence: Ticket 4 writes `cooling_down` state, reset provenance, snapshot, and sessions event
 when PTY output shows cooldown, but it does not yet pause, wait, or resume the interactive session.
+
+## Decision: Do not hard-kill interactive Codex on cooldown by default
+
+Reason: Interactive TUI state can be fragile. The safe v0.2 behavior is to stop normal input
+pass-through, ask for pause confirmation, and send `SIGINT` as a graceful exit request.
+
+Date: 2026-07-02
+
+Related files:
+
+- `src/interactive/shell-session.mjs`
+- `src/interactive/pty-runner.mjs`
+- `tests/interactive-runner.test.mjs`
+
+Consequence: After cooldown detection, normal input is blocked. Enter sends `SIGINT` to Codex.
+Ctrl-C aborts wrapper control and preserves `.agent` cooldown state.

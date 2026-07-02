@@ -11,6 +11,7 @@ export async function runPtyCommand(commandSpec, options = {}) {
     ptyFactory = null,
     resizeEmitter = process,
     onData = null,
+    onInput = null,
   } = options;
 
   assertInteractiveTty({ stdin, stdout });
@@ -50,7 +51,11 @@ export async function runPtyCommand(commandSpec, options = {}) {
     };
 
     const onInput = (chunk) => {
-      child?.write(String(chunk));
+      const text = String(chunk);
+      const shouldPass = options.onInput?.(text, { child }) !== false;
+      if (shouldPass) {
+        child?.write(text);
+      }
     };
 
     const onResize = () => {
