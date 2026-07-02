@@ -47,5 +47,5 @@ test('shell dry-run uses the interactive provider command path', () => {
     /adapter\.startSessionCommand\(\{ repoRoot, prompt, nonInteractive: false \}\)/,
   );
   assert.match(helpSource, /printCommandLine\(dryRunCommand\('shell', options\.prompt\)\)/);
-  assert.match(helpSource, /continuity shell currently supports --dry-run only/);
+  assert.match(helpSource, /runInteractiveShell\(\{ prompt: options\.prompt \}\)/);
 });

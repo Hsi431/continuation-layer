@@ -18,37 +18,36 @@ None.
 
 ## Status
 
-v0.1 release hygiene is the active dogfood state. The cooldown watchdog behavior is implemented: `continuity watch` starts a supervised provider process, records cooldown metadata, waits for `next_resume_at`, and resumes the same Codex session under circuit breakers.
+v0.2 interactive wrapper groundwork is active. Ticket 0 research, Ticket 1 `continuity shell --dry-run`, and Ticket 2 PTY runner foundation are complete in the working tree. The v0.1 cooldown watchdog core remains unchanged.
 
 ## Goal
 
-Keep the repository ready for v0.1 final review without changing cooldown watchdog core behavior.
+Build a Linux-first experimental interactive wrapper without changing cooldown watchdog or recovery semantics.
 
 ## Current Stage
 
-Release hygiene and final documentation review.
+Ticket 2 complete; next ticket is stream cooldown detection over PTY output.
 
 ## What Changed
 
-- Added `continuity watch` as the recommended long-lived cooldown watchdog mode.
-- Kept `continuity start` as manual one-shot mode and `continuity resume` as manual same-session cooldown resume.
-- Added reset-time provenance for provider reset timestamps, provider relative resets, usage-window anchors, and conservative cooldown-detected fallback.
-- Added `cooldown_resume` recovery policy so stale or missing semantic handoff is warning-only for same-session cooldown resume.
-- Kept `strict_continuation` recovery policy for context continuation and overnight child sessions.
-- Added watchdog adoption of existing `cooling_down` state so interrupted waits can be restarted with `continuity watch`.
-- Documented that direct `codex` commands cannot be monitored by Continuation Layer.
-- Documented that an interactive terminal wrapper is future work, not v0.1 behavior.
+- Added `docs/INTERACTIVE_WRAPPER.md` with Ticket 0 research and Ticket 1/2 status.
+- Added `continuity shell --dry-run` to print the interactive Codex command.
+- Added `node-pty` as the selected PTY dependency.
+- Added `src/interactive/pty-runner.mjs` for PTY spawn, stdin/stdout pass-through, resize handling, raw mode, abort handling, and cleanup.
+- Added `src/interactive/shell-session.mjs` to build the Codex interactive command through the existing provider adapter.
+- Wired non-dry-run `continuity shell` to the PTY runner with a clear non-TTY failure path.
+- Added fake-PTY tests for pass-through, resize, cleanup, non-TTY failure, and command construction.
 
 ## Files Touched
 
-- `README.md`
-- `README.zh-TW.md`
-- `docs/COOLDOWN_WATCHDOG.md`
-- `docs/DOGFOOD.md`
-- `docs/RELEASE_CHECKLIST.md`
-- `docs/releases/v0.1.0.md`
-- `.agent/`
-- `AGENTS.md`
+- `bin/continuity.mjs`
+- `docs/INTERACTIVE_WRAPPER.md`
+- `package.json`
+- `package-lock.json`
+- `src/interactive/pty-runner.mjs`
+- `src/interactive/shell-session.mjs`
+- `tests/docs-cli.test.mjs`
+- `tests/interactive-runner.test.mjs`
 
 ## Important Decisions
 
@@ -56,20 +55,19 @@ Release hygiene and final documentation review.
 - `.agent` must not contain provider-private session dumps, secrets, personal absolute paths, stale git status, or one-off runtime logs.
 - Long cooldown waits belong to the foreground supervisor, not hooks.
 - Cooldown same-session recovery may use stale semantic handoff as context, but child continuation remains strict.
+- `node-pty` is the real PTY runtime dependency for the Linux-first wrapper; tests use fake PTY adapters.
 
 ## Current Git State Summary
 
-This handoff is a sanitized release-state example. Run `git status --short` before editing or publishing.
+Branch is ahead by the Ticket 0/1 commit. Ticket 2 changes are uncommitted. Run `git status --short` before editing or publishing.
 
 ## Tests Run
 
-Release hygiene verification:
-
+- `npm ci`
 - `npm run format:check`
 - `npm run check`
 - `npm test`
 - `npm run pack:check`
-- `npm pack --dry-run`
 - `git diff --check`
 
 ## Test Result
@@ -78,21 +76,23 @@ Passed.
 
 ## Known Risks
 
+- Real Codex TUI smoke was not completed in this tool environment because it lacks a normal interactive terminal.
+- Cooldown detection over PTY output is not implemented yet.
 - Real provider smoke tests remain opt-in and are not part of CI.
 - Provider CLI output and session-id extraction can change.
 - Direct `codex` processes cannot be adopted after the fact.
 
 ## Unfinished Work
 
-- Commit the sanitized docs and dogfood state.
-- Push the release hygiene commit if requested.
-- Wait for CI before tagging or publishing v0.1.
+- Ticket 3: add ANSI-stripped rolling-buffer cooldown detection over PTY output.
+- Ticket 4: record interactive cooldown state and mechanical snapshot.
+- Manual Linux TTY smoke for `continuity shell`.
 
 ## Next Exact Steps
 
-1. Commit the sanitized docs and dogfood state.
-2. Push the release hygiene commit if requested.
-3. Review CI before creating a v0.1 tag or release.
+1. Review and commit Ticket 2 changes if accepted.
+2. Start Ticket 3 stream detector.
+3. Run manual Linux TTY smoke before claiming the interactive runtime path fully accepted.
 
 ## Do Not Redo
 
@@ -103,4 +103,4 @@ Passed.
 
 ## Last Updated
 
-2026-07-01T20:51:16Z
+2026-07-02T00:00:00Z

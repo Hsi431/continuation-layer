@@ -55,3 +55,21 @@ Related files:
 - `docs/DOGFOOD.md`
 
 Consequence: `.agent` remains tracked as a dogfood example, with runtime noise scrubbed before release.
+
+## Decision: Use node-pty behind a small runner boundary
+
+Reason: The v0.2 interactive wrapper must run a real full-screen Codex TUI. Plain
+`child_process` pipes are not enough for terminal raw mode, resize behavior, and pass-through
+interaction.
+
+Date: 2026-07-02
+
+Related files:
+
+- `src/interactive/pty-runner.mjs`
+- `src/interactive/shell-session.mjs`
+- `tests/interactive-runner.test.mjs`
+- `package.json`
+
+Consequence: `node-pty` is a runtime dependency for `continuity shell`; automated tests use fake
+PTY adapters so CI does not require an interactive terminal.

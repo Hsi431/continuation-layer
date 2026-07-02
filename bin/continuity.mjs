@@ -9,6 +9,7 @@ import {
   writeMechanicalSnapshot,
 } from '../src/core/agent-state.mjs';
 import { resolveRepoRoot } from '../src/core/git.mjs';
+import { runInteractiveShell } from '../src/interactive/shell-session.mjs';
 import { getProviderAdapter } from '../src/providers/adapter.mjs';
 import {
   continueManagedSession,
@@ -337,7 +338,9 @@ async function main() {
       return;
     }
 
-    throw new Error('continuity shell currently supports --dry-run only; PTY wrapper is planned.');
+    const result = await runInteractiveShell({ prompt: options.prompt });
+    process.exitCode = result.exitCode ?? 0;
+    return;
   }
 
   if (command === 'resume') {

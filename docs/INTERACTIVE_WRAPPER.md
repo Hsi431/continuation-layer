@@ -1,10 +1,10 @@
 # Interactive Terminal Wrapper
 
-This document records Ticket 0 research and early Ticket 1 command-entry behavior for the planned
-v0.2 interactive wrapper.
+This document records Ticket 0 research plus Ticket 1 and Ticket 2 groundwork for the planned v0.2
+interactive wrapper.
 
-Status: `continuity shell --dry-run` is implemented. Real PTY runtime behavior is not implemented
-yet.
+Status: `continuity shell --dry-run` and the initial PTY runner foundation are implemented.
+Cooldown detection, graceful pause, wait, and interactive resume are not implemented yet.
 
 ## Scope
 
@@ -18,14 +18,20 @@ The wrapper should launch Codex itself, connect it to a real pseudo-terminal, ob
 
 The wrapper is not a provider-limit bypass. It must wait for provider reset windows and must not rotate accounts, fake reset times, auto commit, auto PR, or modify Codex itself.
 
-Ticket 1 adds only the dry-run command path:
+Ticket 1 added the dry-run command path:
 
 ```sh
 continuity shell --dry-run
 continuity shell --dry-run "explain repo"
 ```
 
-Non-dry-run `continuity shell` intentionally exits with a clear error until the PTY runner exists.
+Ticket 2 added the first non-dry-run PTY launch path. It requires an interactive TTY and fails
+clearly in non-interactive environments:
+
+```text
+continuity shell requires an interactive TTY.
+Use continuity watch for non-interactive tasks.
+```
 
 ## Codex CLI Observations
 
@@ -105,7 +111,7 @@ direct codex
 
 Interactive Codex needs a real pseudo-terminal. Plain `child_process.spawn()` pipes are not enough for full-screen terminal UI behavior.
 
-Preferred dependency candidate:
+Selected dependency:
 
 ```text
 node-pty
@@ -119,15 +125,17 @@ Registry metadata observed for `node-pty`:
 - dependency: `node-addon-api`
 - unpacked size reported by npm: about 64 MB
 
-Risk: `node-pty` is a native addon. It may affect install behavior, CI, and package footprint. Ticket 2 should avoid making tests depend on a real PTY by default. Unit and integration-ish tests should use a fake PTY adapter.
+Risk: `node-pty` is a native addon. It may affect install behavior, CI, and package footprint. Tests
+avoid depending on a real PTY by using a fake PTY adapter.
 
-Recommended dependency strategy:
+Dependency strategy:
 
 1. Implement a small PTY abstraction boundary.
 2. Load `node-pty` only in the real runner.
 3. Keep test coverage on fake PTY runners.
 4. Fail clearly when `continuity shell` is run without an interactive TTY.
-5. Revisit whether `node-pty` should be a required dependency, optional dependency, or gated runtime dependency after Linux smoke testing.
+5. Revisit optional dependency behavior after Linux smoke testing if native installation becomes a
+   release issue.
 
 ## Terminal Requirements
 
@@ -152,6 +160,10 @@ The smoke docs should tell users how to recover from a broken terminal:
 stty sane
 reset
 ```
+
+Ticket 2 coverage includes fake-PTY tests for pass-through input/output, resize handling, raw-mode
+restore, and listener cleanup. A real Codex TUI smoke test is still required because automated CI
+does not provide an interactive terminal.
 
 ## Stream Detection
 
@@ -265,4 +277,5 @@ Confirmed for v0.2 planning:
 2. Direct already-running `codex` cannot be adopted by Continuation Layer.
 3. Interactive resume should use `codex resume`, not `codex exec resume`.
 
-Ticket 1 can start after this document because it only adds `continuity shell --dry-run`. Ticket 2 must include the first real terminal smoke test before accepting the PTY runner.
+Ticket 1 is complete. Ticket 2 has added the PTY foundation and fake-PTY tests, but still needs a
+manual Linux terminal smoke test before calling the runtime path fully accepted.
