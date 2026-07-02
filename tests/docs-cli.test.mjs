@@ -16,10 +16,11 @@ test('CLI help documents watch mode and direct Codex limitation', () => {
 test('README recommends watch mode and labels start as manual mode', () => {
   const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 
-  assert.match(readme, /## Recommended: Watch mode/);
-  assert.match(readme, /continuity watch "finish this task"/);
+  assert.match(readme, /Watch mode is the recommended entry point for long-running tasks/);
+  assert.match(readme, /continuity watch "finish the auth refactor safely"/);
   assert.match(readme, /## Manual mode/);
   assert.match(readme, /continuity start "finish this task"/);
+  assert.match(readme, /It does \*\*not\*\* wait through the reset window/);
   assert.match(readme, /Continuation Layer can only monitor provider processes it starts/);
 });
 

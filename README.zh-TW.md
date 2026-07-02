@@ -1,244 +1,291 @@
 # Continuation Layer
 
-[English](README.md)
+> 給 Codex 長時間 CLI 任務使用的 durable continuation layer。
 
-> 讓 Codex 長任務跨過冷卻牆、context 壓縮與 session 中斷後，還能安全接續。
+Continuation Layer 幫助 Codex 任務跨過長時間 agent 工作最常中斷的地方：
 
-Continuation Layer 是一個給 CLI coding agent 用的任務續接層。
+- cooldown / usage-limit 牆，
+- context compaction，
+- session 中斷，
+- stale resume state，
+- 需要人盯著看的 overnight run。
 
-當 Codex 跑長任務時，最煩的不是它不會寫 code，而是它常常在快完成時撞到這些問題：
+它**不會**繞過 provider limit。
+它**不會**切換帳號。
+它**不會**把私有聊天歷史當成唯一事實來源。
 
-- 撞到 5 小時冷卻牆，任務停在一半。
-- Context 快滿，被壓縮後漏掉關鍵決策。
-- Resume 回來時看似接上了，其實已經忘了做過什麼。
-- 新 session 又重新掃 repo，重做探索，浪費額度。
-- 過夜跑任務時，還是得人盯著它有沒有死掉。
+它會把 durable task state 寫進你的 repository，讓 coding agent 可以暫停、恢復，並從正確的位置繼續。
 
-Continuation Layer 把任務狀態寫進 repo 裡，讓 agent 可以停下來、交接、恢復、再接著做。
+---
 
-```text
-不是靠聊天紀錄續命。
-不是靠 provider 私有 cache。
-不是靠切帳號或繞限制。
+## 它做什麼
 
-它靠的是 repo 裡可檢查、可追蹤、可恢復的 durable state。
+| 問題                               | Continuation Layer                                     |
+| ---------------------------------- | ------------------------------------------------------ |
+| Codex 在任務中途撞到 cooldown wall | Watch mode 等待 reset window，並 resume 同一 session   |
+| Context pressure 可能遺失重要決策  | Continuation 前先寫 handoff files                      |
+| Resume 看似接上但忘了任務意圖      | 繼續前先讀 `.agent/` durable state                     |
+| 新 session 重掃 repo 並浪費 token  | Child session 從 handoff、git status、git diff 恢復    |
+| Overnight work 需要人盯著          | Overnight mode 必須明確開啟，並受 recovery checks 保護 |
+
+---
+
+## Quick start
+
+在你要保護的 repository 初始化 durable state：
+
+```sh
+continuity init --task-id refactor-auth
 ```
 
-## Problem / Before-After
+長任務請透過 watch mode 執行：
 
-| Before                              | After                                            |
-| ----------------------------------- | ------------------------------------------------ |
-| Cooldown wall 讓任務停在一半        | Watch mode 等待 reset 並自動 resume 同一 session |
-| Context compaction 可能壓掉關鍵決策 | Continuation 前先寫 handoff                      |
-| Resume 看似接上但任務意圖失準       | 接續前先讀 `.agent` durable state                |
-| 新 session 重掃 repo、浪費額度      | Child session 從 handoff、git status、diff 恢復  |
-| 過夜任務需要人盯                    | Overnight mode 明確開啟，並有 recovery gates     |
-
-## Highlights
-
-- Codex-first v0.1 preview。
-- 長駐 cooldown watchdog，reset 後自動 resume 同一個 Codex session。
-- Context 快滿時先 handoff，再 continuation。
-- Child continuation 使用 `codex fork`。
-- `.agent` durable state 是任務真實來源。
-- Session chain 可追蹤。
-- Overnight mode 預設關閉，必須明確打開。
-- Recovery check 失敗會停下來，不會硬做。
-- Supervisor 負責 cooldown 偵測、等待與 same-session resume。
-- Hooks 只做短生命週期工作，不 sleep 五小時。
-- Task completion / archive / cleanup 已完成。
-- 不切帳號。
-- 不繞 provider limit。
-- 不自動 commit。
-
-## 安全邊界
-
-Continuation Layer 不是 provider-limit bypass 工具。
-
-它不會：
-
-- 自動切帳號。
-- 偽造 reset window。
-- 在 hook 裡 sleep 五小時。
-- 自動 commit。
-- 自動開 PR。
-- 從不完整 handoff 強行續做。
-- 把 provider 私有 session storage 當核心狀態。
-- 把 compacted summary 當唯一事實來源。
-
-它只做一件事：
-
-```text
-讓長任務可以合法暫停，明確交接，安全恢復。
+```sh
+continuity watch "finish the auth refactor safely"
 ```
 
-Watch mode 只等待 provider reset window。它不繞過限制、不切換帳號、不偽造 reset time，也不在 hooks 裡長時間 sleep。
+Watch mode 是長時間任務的建議入口。
 
-## 一張圖看懂
+它會在 foreground supervisor 之下啟動 Codex。如果 Codex 撞到 cooldown wall，supervisor 會記錄 state，等到 reset window，然後自動 resume 同一個 Codex session。
+
+```text
+Codex running
+  ↓
+cooldown detected
+  ↓
+record next_resume_at
+  ↓
+wait through reset window
+  ↓
+resume same Codex session
+  ↓
+continue from .agent state
+```
+
+查看 task state：
+
+```sh
+continuity status
+continuity status --json
+```
+
+---
+
+## Manual mode
+
+當你不想保留長駐 watchdog process 時，可以使用 manual mode：
+
+```sh
+continuity start "finish this task"
+continuity resume
+```
+
+Manual mode 只執行一次。如果偵測到 cooldown，它會記錄 `next_resume_at`，然後退出。
+
+它**不會**保留 process。
+它**不會**等待 reset window。
+除非你執行 `continuity resume`，否則它**不會**自動 resume。
+
+如果你要自動 cooldown wait 和 same-session resume，請使用 `continuity watch`。
+
+---
+
+## 重要限制
+
+Continuation Layer 只能監控由它啟動的 provider process。
+
+如果你直接執行 Codex：
+
+```sh
+codex
+```
+
+Continuation Layer 看不到該 process，不能捕捉 cooldown event，不能更新 `.agent/`，也不能稍後自動 resume 它。
+
+v0.1 請使用：
+
+```sh
+continuity watch "your task"
+```
+
+Direct Codex-style usage 的 interactive terminal wrapper 已規劃，但不包含在 v0.1。
+
+---
+
+## 運作方式
 
 ```mermaid
 flowchart TD
-    A["Codex long task"] --> B{"What happened?"}
+  A["Start task with continuity watch"] --> B["Launch Codex under supervisor"]
+  B --> C{"What happened?"}
 
-    B -->|"Cooldown / rate limit"| C["Supervisor records failure snapshot"]
-    C --> D["Record next_resume_at"]
-    D --> E["Resume same Codex session after reset"]
-    E --> F["Read .agent state and git status/diff"]
-    F --> G["Continue task"]
+  C -->|"Cooldown / rate limit"| D["Record failure snapshot"]
+  D --> E["Write cooling_down state"]
+  E --> F["Compute next_resume_at"]
+  F --> G["Wait until reset window"]
+  G --> H["Resume same Codex session"]
+  H --> I["Read .agent state + git status/diff"]
+  I --> J["Continue task"]
 
-    B -->|"Context pressure / compaction risk"| H["Write HANDOFF.md + NEXT.md"]
-    H --> I["Write AUTO_SNAPSHOT.md"]
-    I --> J{"Overnight mode?"}
+  C -->|"Context pressure"| K["Write HANDOFF.md + NEXT.md"]
+  K --> L["Write AUTO_SNAPSHOT.md"]
+  L --> M{"Overnight mode enabled?"}
 
-    J -->|"Off by default"| K["Ask user before continuation"]
-    K --> L["User confirms"]
-    L --> M["Start child session with codex fork"]
+  M -->|"No"| N["Wait for user confirmation"]
+  N --> O["Start child session with codex fork"]
 
-    J -->|"On explicitly"| N["Run recovery checks"]
-    N -->|"Pass"| M
-    N -->|"Fail"| O["Stop and wait for user"]
+  M -->|"Yes"| P["Run strict recovery checks"]
+  P -->|"Pass"| O
+  P -->|"Fail"| Q["Stop and wait for user"]
 
-    M --> P["Child session reads handoff"]
-    P --> Q["Check git state"]
-    Q --> G
+  O --> R["Child session reads handoff"]
+  R --> S["Check git state"]
+  S --> J
 ```
 
-## 它解決什麼
+---
 
-### 1. 撞冷卻牆後，watchdog 會等待並恢復同一個 session
+## 核心概念
 
-Codex 撞到 usage limit、rate limit、429 或 reset window 時，Continuation Layer 不會硬凹、不會切帳號、不會亂重開。
+### 1. Cooldown walls become resumable
+
+當 Codex 撞到 usage limit、rate limit、429 或 reset window 時，Continuation Layer 不會硬把 request 推過去。
 
 它會：
 
-1. 記錄 failure snapshot。
-2. 標記目前任務進入 cooldown。
-3. 解析 reset time；解析不到就使用有 provenance 標記的 fallback。
-4. 把 reset + buffer 記成 `next_resume_at`。
-5. Watch mode 會讓前景 supervisor 等到 reset。
-6. 用 `codex resume` / `codex exec resume` 接回同一個 session。
-7. 接續前先讀 `.agent` 狀態與 git 狀態。
+1. 記錄 mechanical failure snapshot，
+2. 把任務標成 `cooling_down`，
+3. 記錄 `cooldown_detected_at`，
+4. 計算 `next_resume_at`，
+5. 記錄 reset-time provenance，
+6. 在 `watch` mode 中等待，
+7. reset 後 resume 同一個 Codex session。
+
+Reset time 依照以下優先順序計算：
 
 ```text
-Cooldown wall
-  ↓
-record failure
-  ↓
-record legal resume time
-  ↓
-watch waits through reset window
-  ↓
-resume same session after reset
-  ↓
-continue from durable task state
+provider explicit reset timestamp
+> provider relative reset duration
+> usage_window_started_at + 5h + buffer
+> cooldown_detected_at + 5h + buffer
 ```
 
-如果 provider 沒提供精確 reset time，Continuation Layer 會從 `usage_window_started_at + 5h + buffer` 估算。如果沒有 usage-window anchor，就 fallback 到 `cooldown_detected_at + 5h + buffer`，並把 provenance 標成 `cooldown_detected_fallback`。
+如果使用最後 fallback，會標記為 `cooldown_detected_fallback`。
 
-Cooldown resume 是 same-session recovery path。Semantic handoff stale 只會是 warning，不會阻止 resume，因為 provider 可能已經拒絕請求，而且 cooldown 等待本身就可能讓 handoff 超過一般 freshness gate。Recovery 會依賴同一個 session id、mechanical snapshot、git state、provider logs 和 resume prompt。
+Cooldown resume 是 same-session recovery path。Stale semantic handoff 是 warning，不是 blocker，因為 cooldown 等待本身可能讓 handoff 超過一般 freshness gate。
 
-Child continuation 仍維持 strict policy。Stale、missing 或 incomplete handoff 仍可阻止 child-session continuation 與 overnight automation。
+Git conflicts、missing session id、corrupted state、unreadable git state 仍然是 blockers。
 
-如果 watch 在 cooldown 等待期間被中斷，稍後再次執行 `continuity watch` 會接管既有 `cooling_down` state，等待既有 `next_resume_at`，然後 resume 同一個 session，不會重新 start provider task。
+---
 
-### 2. Context 快滿時，不直接相信壓縮摘要
+### 2. Context pressure writes handoff before continuation
 
-長任務最怕的是 context compaction 把錯的東西留下，把重要的東西壓掉。
+Context compaction 可能保留錯的細節，並丟掉重要細節。
 
-Continuation Layer 的策略是：
-
-1. 偵測到 context pressure 或 PreCompact。
-2. 先寫 handoff。
-3. 先寫下一步。
-4. 先保存 git/runtime snapshot。
-5. 預設停下來問你要不要開新的 continuation session。
-6. 你同意後，用 `codex fork` 從父 session 開 child session 接續。
+Continuation Layer 會在開啟 continuation path 前，先寫 durable handoff state：
 
 ```text
-Context pressure
+context pressure
   ↓
-write handoff before compaction
+write HANDOFF.md
   ↓
-ask user
+write NEXT.md
   ↓
-codex fork child session
+capture git/runtime snapshot
   ↓
-recover from .agent + git state
+ask for confirmation by default
+  ↓
+start child session with codex fork
 ```
 
-新的 session 不用重新猜上下文，也不用重掃整個 repo。
+Child continuation 比 cooldown resume 更嚴格。Stale、missing 或 incomplete handoff 可能阻止 child-session continuation 和 overnight automation。
 
-### 3. 過夜模式：明確打開才會自動續
+---
 
-預設情況下，Continuation Layer 不會擅自開新 session。
+### 3. Overnight mode is explicit and guarded
 
-但如果你要睡覺、出門、長時間不在，可以打開 overnight mode：
+Overnight continuation 預設關閉。
+
+明確啟用：
 
 ```sh
 continuity overnight enable
 ```
 
-打開後，context handoff 完成時，它可以自動開 child session 繼續跑。
+接著執行 continuation：
 
-但它不是無腦續跑。它會先檢查：
+```sh
+continuity continue
+```
 
-- handoff 是否存在。
-- `NEXT.md` 是否存在。
-- git state 是否合理。
-- parent session 是否可追蹤。
-- 是否有 conflict。
-- 是否有不完整狀態。
-- recovery check 是否通過。
+在啟動 unattended child session 前，Continuation Layer 會檢查：
 
-只要 recovery check 失敗，它就會停下來等你。
+- handoff exists，
+- `NEXT.md` exists，
+- git state is coherent，
+- parent session is traceable，
+- no conflicts are present，
+- recovery checks pass。
 
-### 4. 收尾時，舊任務不污染新任務
+如果 recovery 失敗，automation 會停止並等待 user。
 
-v0.1 已補上 cleanup lifecycle。
+關閉 overnight mode：
 
-你可以把任務標記完成：
+```sh
+continuity overnight disable
+```
+
+---
+
+### 4. Completed tasks do not pollute new tasks
+
+標記目前任務完成：
 
 ```sh
 continuity complete
 ```
 
-也可以開始乾淨的新任務：
+開始乾淨的新任務：
 
 ```sh
 continuity new-task --task-id next-task
 ```
 
-系統會先把舊的 active handoff / snapshot archive 起來，再寫新的 active state。新任務不會沿用上一個任務的 handoff。
+系統會在寫入新 task state 前，先 archive active handoff 和 snapshot。
 
-## 它怎麼保存任務狀態
+---
 
-Continuation Layer 會在你的 repo 裡建立 `.agent/`：
+## Durable task state
+
+Continuation Layer 會在受保護的 repository 建立 `.agent/` directory。
 
 ```text
 .agent/
-  HANDOFF.md          目前任務交接
-  NEXT.md             下一個精準步驟
-  DECISIONS.md        已確定的重要決策
-  AUTO_SNAPSHOT.md    git/runtime 機械快照
-  state.json          機器可讀任務狀態
-  sessions.jsonl      parent/child session chain
-  logs/               supervisor logs
-  handoffs/           handoff archive
-  snapshots/          snapshot archive
+  HANDOFF.md        active task handoff
+  NEXT.md           exact next step
+  DECISIONS.md      durable decisions
+  AUTO_SNAPSHOT.md  mechanical git/runtime snapshot
+  state.json        machine-readable task state
+  sessions.jsonl    session chain and lifecycle events
+  logs/             supervisor logs
+  handoffs/         archived handoffs
+  snapshots/        archived snapshots
 ```
 
-這些檔案讓 agent 的任務狀態變成可讀、可查、可恢復。
+這些檔案讓 task state 可檢查、可稽核、可恢復。
 
-這個 repository 也 dogfood Continuation Layer。已提交的 `.agent/` 目錄是刻意保留的真實 project-state example，不應包含 provider-private session dumps、secrets 或 machine-local logs。
+這個 repository dogfoods Continuation Layer。已 commit 的 `.agent/` directory 是刻意保留的 sanitized project-state example，不應包含 secrets、provider-private dumps、machine-local logs 或 stale runtime noise。
 
-## 安裝
+---
+
+## Install
 
 需求：
 
-- Node.js 20 或更新版本。
-- Git。
-- 已安裝並登入 Codex CLI。
-- 一個可以寫入 `.agent/` durable state 的 git repo。
+- Node.js 20 or newer
+- Git
+- Codex CLI installed and authenticated
+- 可以寫入 `.agent/` state 的 git repository
 
 Clone 並安裝：
 
@@ -248,7 +295,7 @@ cd continuation-layer
 npm install
 ```
 
-從 source tree 使用：
+從 source 執行：
 
 ```sh
 node bin/continuity.mjs status
@@ -261,229 +308,248 @@ npm link
 continuity status
 ```
 
-Codex plugin package 放在 `plugins/codex-continuity/`。Dogfood 時請透過你的 Codex plugin workflow 安裝或 link 這個 plugin，然後開新的 Codex thread，讓 hooks 和 skill 被載入。若尚未安裝 plugin，CLI 和 supervisor 仍可從 source tree 使用。
+Codex plugin package 位於：
 
-## Quick Start
-
-在你要保護的 repo 裡，先初始化 durable state：
-
-```sh
-continuity init --task-id refactor-auth
+```text
+plugins/codex-continuity/
 ```
 
-## Recommended: Watch mode
+即使沒有安裝 plugin，CLI supervisor 仍可從 source tree 使用。
 
-長任務優先用 watch mode：
+---
+
+## Commands
+
+### Initialize
+
+```sh
+continuity init --task-id my-task
+```
+
+### Run with watchdog
 
 ```sh
 continuity watch "finish this task"
 ```
 
-Watch mode 會：
-
-- 啟動 provider process。
-- 從受監督的 process 偵測 cooldown。
-- 讓 supervisor 保持前景執行。
-- 等到 `next_resume_at`。
-- 自動 resume 同一個 Codex session。
-
-查看狀態：
-
-```sh
-continuity status
-continuity status --json
-```
-
-## Manual mode
+### Run once
 
 ```sh
 continuity start "finish this task"
+```
+
+### Resume after cooldown
+
+```sh
 continuity resume
 ```
 
-Manual: start / resume mode。
-
-Manual mode 會：
-
-- 執行一次。
-- 偵測 cooldown。
-- 記錄 `next_resume_at`。
-- 退出。
-- 需要使用者之後手動執行 `continuity resume`。
-
-`continuity start` 不是 watchdog。它不會保留長駐 process，也不會等待 reset window。
-
-Continuation Layer 只能監控由它啟動的 provider process。如果你直接跑 `codex`，cooldown event 不會被捕捉，state 不會更新，watch mode 之後也無法接管那個 process。
-
-## Planned: Interactive terminal wrapper
-
-v0.1 不包含任意 `codex` invocation 的 interactive terminal wrapper。這是 future work。v0.1 請使用 `continuity watch`、`continuity start` 和 `continuity resume`。
-
-### 其他指令
-
-寫 snapshot：
+### Write a snapshot
 
 ```sh
 continuity snapshot
 ```
 
-Context handoff 後開 child session：
+### Continue after context handoff
 
 ```sh
 continuity continue
 continuity continue --yes
 ```
 
-`continue` 會寫 handoff，然後停下來確認。`continue --yes` 會跑 recovery checks，通過後用 `codex fork` 開 child session。
+`continue` 會寫 handoff 並等待 confirmation。
+`continue --yes` 會執行 recovery checks，並用 `codex fork` 啟動 Codex child session。
 
-過夜模式：
+### Overnight mode
 
 ```sh
 continuity overnight enable
-continuity continue
-```
-
-關掉：
-
-```sh
 continuity overnight disable
 ```
 
-任務完成與新任務：
+### Complete and reset task state
 
 ```sh
 continuity complete
 continuity new-task --task-id next-task
 ```
 
-只看 provider command，不真的啟動 Codex：
+### Dry run
 
 ```sh
-continuity start --dry-run "refactor the auth module safely"
-continuity watch --dry-run "refactor the auth module safely"
+continuity start --dry-run "refactor safely"
+continuity watch --dry-run "refactor safely"
 continuity resume --dry-run
 continuity continue --dry-run
 ```
 
-## Codex Integration
+---
 
-Codex plugin package 放在：
+## Codex integration
+
+Codex plugin package 包含：
+
+- continuity skill，
+- lifecycle hooks，
+- hook command script，
+- plugin metadata。
+
+位置：
 
 ```text
 plugins/codex-continuity/
 ```
 
-包含：
+Hook behavior：
 
-- continuity skill
-- lifecycle hooks
-- hook command script
-- plugin metadata
+| Hook           | Behavior                                            |
+| -------------- | --------------------------------------------------- |
+| `SessionStart` | Inject compact continuity context                   |
+| `Stop`         | Write `.agent/AUTO_SNAPSHOT.md`                     |
+| `PreCompact`   | Record context pressure and write handoff           |
+| `PostCompact`  | Record compaction and prefer `.agent` durable state |
 
-Hook 行為：
+Hooks 只做短生命週期工作。它們不會 sleep 好幾小時。
 
-| Hook           | 行為                                                  |
-| -------------- | ----------------------------------------------------- |
-| `SessionStart` | 注入 compact continuity context                       |
-| `Stop`         | 寫入 `.agent/AUTO_SNAPSHOT.md`                        |
-| `PreCompact`   | 記錄 context pressure，寫 handoff                     |
-| `PostCompact`  | 記錄 compaction 發生，提醒後續優先信任 `.agent` state |
+Cooldown detection、waiting、same-session resume 由外部 supervisor 處理。
 
-## 現在狀態
+---
 
-目前是 Codex-first preview，可以跑核心 continuity flow。
+## Safety boundaries
+
+Continuation Layer 不是 provider-limit bypass tool。
+
+它不會：
+
+- rotate accounts，
+- fake reset windows，
+- bypass cooldowns，
+- sleep for hours inside hooks，
+- auto commit，
+- open pull requests automatically，
+- force continuation from incomplete handoff，
+- treat private provider session storage as source of truth，
+- treat compacted summaries as the only source of truth。
+
+它只做一件事：
+
+```text
+Make long tasks pause legally, hand off explicitly, and recover safely.
+```
+
+---
+
+## Current status
+
+這是 Codex-first v0.1 preview。
 
 已完成：
 
-- Durable `.agent` state and validation
-- Codex adapter and supervisor
-- Cooldown watchdog and same-session automatic resume
-- Codex continuity skill and plugin package
-- Codex lifecycle hooks
-- Context handoff
-- `codex fork` child continuation
-- Guarded overnight auto-continuation
-- Completion / archive / cleanup
+- durable `.agent` state and validation，
+- Codex adapter and supervisor，
+- cooldown watchdog and same-session automatic resume，
+- reset-time provenance，
+- Codex continuity skill and plugin package，
+- Codex lifecycle hooks，
+- context handoff，
+- `codex fork` child continuation，
+- guarded overnight auto-continuation，
+- completion / archive / cleanup，
+- `AGENTS.md` 中的 behavioral acceptance rules。
 
-## Known Limitations
+---
 
-- v0.1 是 Codex-first。
-- Claude Code 目前是 v1/future provider path，還不是 first-class runtime。
-- Provider CLI 行為和私有 session storage 可能變動；私有 session storage 只作診斷，不是核心狀態。
-- Continuation Layer 只能監控由它啟動的 provider process。如果你直接跑 `codex`，cooldown event 不會被捕捉。
-- 目前主要透過本機 unit/integration tests 和 dogfood flow 驗證。
-- Context continuation 預設需要 user confirmation，除非明確啟用 overnight mode。
-- 真 provider smoke tests 應保持 opt-in，不放進 CI。
+## Known limitations
+
+- v0.1 is Codex-first。
+- Claude Code is documented as a future provider path, not a first-class runtime yet。
+- Continuation Layer can only monitor provider processes it starts。
+- Direct `codex` sessions are not captured。
+- Interactive terminal wrapper support is planned, but not included in v0.1。
+- Real provider smoke tests are opt-in and not part of CI。
+- Context continuation asks for confirmation unless overnight mode is explicitly enabled。
+- Provider CLI behavior and private session storage may change; private session storage is diagnostics only, not core state。
+
+---
 
 ## Roadmap
 
 ### v0.1
 
-- Codex CLI as the primary provider.
-- Safe cooldown watchdog.
-- Handoff-before-continuation.
-- Guarded overnight mode.
-- Completion / archive / cleanup.
-- Release polish and packaging.
+- Codex CLI as primary provider
+- Cooldown watchdog
+- Same-session resume after cooldown
+- Handoff-before-continuation
+- Guarded overnight mode
+- Completion / archive / cleanup
+- Release packaging
 
 ### v0.x
 
-- Dogfood feedback.
-- Packaging polish.
-- Clearer plugin installation flow.
-- Optional provider smoke tests.
+- Dogfood feedback
+- Packaging polish
+- Clearer plugin installation flow
+- Optional provider smoke tests
+- Interactive terminal wrapper prototype
 
 ### v1
 
-- Claude Code provider path.
-- `claude --resume`
-- `claude --continue`
-- `claude --fork-session`
-- Claude `StopFailure` integration.
-- Provider smoke tests.
-- Better circuit breaker and recovery policy.
+- Claude Code provider path
+- Provider smoke tests
+- Better circuit breaker policy
+- Better recovery diagnostics
 
-## Repository Layout
+---
+
+## Repository layout
 
 ```text
-.agent/                         durable task state for this repo
-.agents/skills/continuity       repo-local Codex skill entry
-docs/                           architecture, safety, and research notes
-plugins/codex-continuity/       Codex plugin package
-plugins/claude-code-adapter/    future Claude Code adapter notes
-src/                            core runtime, providers, supervisor
-tests/                          unit and integration tests
+.agent/                     durable task state for this repo
+.agents/skills/continuity   repo-local Codex skill entry
+docs/                       architecture, safety, and release notes
+plugins/codex-continuity/   Codex plugin package
+plugins/claude-code-adapter/ future Claude Code adapter notes
+src/                        core runtime, providers, supervisor
+tests/                      unit and integration tests
+AGENTS.md                   behavioral acceptance rules for agent work
 ```
+
+---
 
 ## Development
 
-Run tests:
+Run tests：
 
 ```sh
 npm test
 ```
 
-Run syntax checks:
+Run syntax checks：
 
 ```sh
 npm run check
 ```
 
-Run formatting checks:
+Run formatting checks：
 
 ```sh
 npm run format:check
 ```
 
-Check package contents:
+Check package contents：
 
 ```sh
 npm run pack:check
 ```
 
-如果你的本機有 Codex skill/plugin validators，請用你環境中的 validator path 驗證 packaged plugin。
+Manual release checks 請看：
 
-手動 release 檢查請看 `docs/RELEASE_CHECKLIST.md` 和 `docs/DOGFOOD.md`。
+```text
+docs/RELEASE_CHECKLIST.md
+docs/DOGFOOD.md
+```
+
+---
 
 ## License
 
