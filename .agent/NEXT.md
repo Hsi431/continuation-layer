@@ -2,7 +2,7 @@
 
 ## Next Action
 
-Review and commit Ticket 7 existing cooldown adoption, then start Ticket 8 docs and smoke checklist.
+Review and commit Ticket 8 docs and smoke checklist, then run Ticket 9 validation and self-review.
 
 ## Target Files
 
@@ -24,7 +24,7 @@ Review and commit Ticket 7 existing cooldown adoption, then start Ticket 8 docs 
 
 - Do not change watchdog core logic.
 - Do not change recovery mode semantics.
-- Keep Ticket 8 documentation honest: Linux-first, experimental, no direct `codex` adoption.
+- Run full validation before push; do not tag or publish in this pass.
 - Keep `.agent` as a sanitized dogfood example only; do not commit runtime logs.
 
 ## First Command To Inspect
@@ -35,4 +35,4 @@ git status --short
 
 ## Stop Condition
 
-Stop if docs imply Windows native support, Claude Code interactive support, or direct running `codex` can be adopted.
+Stop if validation fails, docs overclaim support, or worktree contains uncommitted runtime residue.

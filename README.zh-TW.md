@@ -102,13 +102,23 @@ codex
 
 Continuation Layer 看不到該 process，不能捕捉 cooldown event，不能更新 `.agent/`，也不能稍後自動 resume 它。
 
-v0.1 請使用：
+非互動長任務請使用：
 
 ```sh
 continuity watch "your task"
 ```
 
-Direct Codex-style usage 的 interactive terminal wrapper 已規劃，但不包含在 v0.1。
+Experimental interactive Codex-style terminal usage 請使用：
+
+```sh
+continuity shell
+```
+
+`continuity shell` 是 Linux-first experimental v0.2 work。它會在 PTY wrapper 裡啟動 Codex，
+觀察 terminal output 的 cooldown text，寫入 `.agent` cooldown state，在 user confirm pause
+後等待 reset window，並用 interactive `codex resume` 恢復。
+
+它仍然不能 attach 到已經直接執行中的 `codex` process。
 
 ---
 
@@ -332,6 +342,16 @@ continuity init --task-id my-task
 continuity watch "finish this task"
 ```
 
+### Run interactive Codex shell experimentally
+
+```sh
+continuity shell
+continuity shell "explain this repo"
+```
+
+這是 Linux-first experimental interactive wrapper support。非互動長任務請使用
+`continuity watch`。
+
 ### Run once
 
 ```sh
@@ -379,6 +399,7 @@ continuity new-task --task-id next-task
 ```sh
 continuity start --dry-run "refactor safely"
 continuity watch --dry-run "refactor safely"
+continuity shell --dry-run "refactor safely"
 continuity resume --dry-run
 continuity continue --dry-run
 ```
@@ -441,7 +462,7 @@ Make long tasks pause legally, hand off explicitly, and recover safely.
 
 ## Current status
 
-這是 Codex-first v0.1 preview。
+這是 Codex-first preview。
 
 已完成：
 
@@ -454,6 +475,7 @@ Make long tasks pause legally, hand off explicitly, and recover safely.
 - context handoff，
 - `codex fork` child continuation，
 - guarded overnight auto-continuation，
+- experimental Linux-first interactive shell wrapper，
 - completion / archive / cleanup，
 - `AGENTS.md` 中的 behavioral acceptance rules。
 
@@ -461,11 +483,12 @@ Make long tasks pause legally, hand off explicitly, and recover safely.
 
 ## Known limitations
 
-- v0.1 is Codex-first。
+- 目前 preview 是 Codex-first。
 - Claude Code is documented as a future provider path, not a first-class runtime yet。
 - Continuation Layer can only monitor provider processes it starts。
 - Direct `codex` sessions are not captured。
-- Interactive terminal wrapper support is planned, but not included in v0.1。
+- Interactive terminal wrapper support is experimental and Linux-first。
+- Windows native interactive shell support is not included；Windows users likely need WSL。
 - Real provider smoke tests are opt-in and not part of CI。
 - Context continuation asks for confirmation unless overnight mode is explicitly enabled。
 - Provider CLI behavior and private session storage may change; private session storage is diagnostics only, not core state。
@@ -490,7 +513,7 @@ Make long tasks pause legally, hand off explicitly, and recover safely.
 - Packaging polish
 - Clearer plugin installation flow
 - Optional provider smoke tests
-- Interactive terminal wrapper prototype
+- Interactive terminal wrapper hardening
 
 ### v1
 

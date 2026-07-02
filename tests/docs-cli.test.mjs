@@ -26,6 +26,8 @@ test('README recommends watch mode and labels start as manual mode', () => {
   assert.match(readme, /continuity start "finish this task"/);
   assert.match(readme, /It does \*\*not\*\* wait through the reset window/);
   assert.match(readme, /Continuation Layer can only monitor provider processes it starts/);
+  assert.match(readme, /continuity shell/);
+  assert.match(readme, /Interactive terminal wrapper support is experimental and Linux-first/);
 });
 
 test('cooldown watchdog docs state current gaps and target behavior', () => {
@@ -36,6 +38,15 @@ test('cooldown watchdog docs state current gaps and target behavior', () => {
   assert.match(docs, /If you run `codex` directly/i);
   assert.match(docs, /usage_window_started_at \+ 5h \+ buffer/);
   assert.match(docs, /continuity watch "task"/);
+});
+
+test('interactive smoke docs state Linux-first wrapper limitations', () => {
+  const docs = readFileSync(new URL('../docs/SMOKE_INTERACTIVE.md', import.meta.url), 'utf8');
+
+  assert.match(docs, /manual and Linux-first/);
+  assert.match(docs, /continuity shell --dry-run/);
+  assert.match(docs, /Direct already-running Codex sessions cannot be adopted/);
+  assert.match(docs, /stty sane/);
 });
 
 test('shell dry-run uses the interactive provider command path', () => {
