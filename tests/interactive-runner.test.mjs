@@ -189,3 +189,22 @@ test('interactive shell builds a Codex TUI command through the PTY runner', asyn
     cwd: repo,
   });
 });
+
+test('interactive shell tees PTY output into the cooldown stream detector', async () => {
+  const repo = makeRepo();
+  let cooldownEvent = null;
+
+  await runInteractiveShell({
+    cwd: repo,
+    onCooldown: (event) => {
+      cooldownEvent = event;
+    },
+    ptyRunner: async (_spec, options) => {
+      options.onData('usage limit reached; try again in 10 minutes');
+      return { exitCode: 0, signal: null };
+    },
+  });
+
+  assert.equal(cooldownEvent.matched, true);
+  assert.match(cooldownEvent.reason, /usage limit reached/i);
+});

@@ -73,3 +73,18 @@ Related files:
 
 Consequence: `node-pty` is a runtime dependency for `continuity shell`; automated tests use fake
 PTY adapters so CI does not require an interactive terminal.
+
+## Decision: Keep PTY cooldown stream detection dependency-light
+
+Reason: Ticket 3 only needs enough ANSI/control stripping to normalize PTY output before passing it
+to the existing Codex cooldown detector. Adding another dependency is not necessary yet.
+
+Date: 2026-07-02
+
+Related files:
+
+- `src/interactive/stream-detector.mjs`
+- `tests/stream-detector.test.mjs`
+
+Consequence: The stream detector uses a local ANSI/control-sequence stripper and still delegates
+cooldown matching to `codexAdapter.detectCooldownError`.

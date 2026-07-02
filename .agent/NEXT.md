@@ -2,7 +2,7 @@
 
 ## Next Action
 
-Review and commit Ticket 2 PTY runner foundation, then start Ticket 3 stream cooldown detector.
+Review and commit Ticket 3 stream cooldown detector, then start Ticket 4 interactive cooldown state recording.
 
 ## Target Files
 
@@ -12,8 +12,10 @@ Review and commit Ticket 2 PTY runner foundation, then start Ticket 3 stream coo
 - `package-lock.json`
 - `src/interactive/pty-runner.mjs`
 - `src/interactive/shell-session.mjs`
+- `src/interactive/stream-detector.mjs`
 - `tests/docs-cli.test.mjs`
 - `tests/interactive-runner.test.mjs`
+- `tests/stream-detector.test.mjs`
 - `.agent/HANDOFF.md`
 - `.agent/NEXT.md`
 - `.agent/DECISIONS.md`
@@ -22,7 +24,7 @@ Review and commit Ticket 2 PTY runner foundation, then start Ticket 3 stream coo
 
 - Do not change watchdog core logic.
 - Do not change recovery mode semantics.
-- Keep Ticket 3 limited to stream detection; do not record cooldown state or auto-resume yet.
+- Keep Ticket 4 limited to recording cooldown state and snapshot; do not add wait/resume yet.
 - Keep `.agent` as a sanitized dogfood example only; do not commit runtime logs.
 
 ## First Command To Inspect
@@ -33,4 +35,4 @@ git status --short
 
 ## Stop Condition
 
-Stop if the stream detector would require changing cooldown watchdog semantics or Codex adapter command semantics.
+Stop if interactive cooldown recording would require changing cooldown watchdog semantics or Codex adapter command semantics.

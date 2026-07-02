@@ -1,10 +1,11 @@
 # Interactive Terminal Wrapper
 
-This document records Ticket 0 research plus Ticket 1 and Ticket 2 groundwork for the planned v0.2
-interactive wrapper.
+This document records Ticket 0 research plus Ticket 1 through Ticket 3 groundwork for the planned
+v0.2 interactive wrapper.
 
-Status: `continuity shell --dry-run` and the initial PTY runner foundation are implemented.
-Cooldown detection, graceful pause, wait, and interactive resume are not implemented yet.
+Status: `continuity shell --dry-run`, the initial PTY runner foundation, and PTY output cooldown
+detection are implemented. Cooldown state recording, graceful pause, wait, and interactive resume
+are not implemented yet.
 
 ## Scope
 
@@ -32,6 +33,10 @@ clearly in non-interactive environments:
 continuity shell requires an interactive TTY.
 Use continuity watch for non-interactive tasks.
 ```
+
+Ticket 3 added a stream detector that watches PTY output without changing terminal pass-through
+behavior. Detection currently emits an internal callback only; it does not yet write `.agent` state,
+pause Codex, wait, or resume.
 
 ## Codex CLI Observations
 
@@ -169,7 +174,7 @@ does not provide an interactive terminal.
 
 PTY output includes ANSI escape sequences and alternate-screen control codes. Cooldown detection must not run directly against raw output.
 
-The stream detector should:
+The stream detector:
 
 1. pass raw chunks through to the user's terminal unchanged;
 2. append chunks to a capped rolling buffer, likely 16 KB or 32 KB;
@@ -185,21 +190,9 @@ codexAdapter.detectCooldownError(text)
 codexAdapter.parseResetTimeDetails(text, now)
 ```
 
-Small dependency candidate for ANSI stripping:
-
-```text
-strip-ansi
-```
-
-Registry metadata observed for `strip-ansi`:
-
-- version: `7.2.0`
-- license: `MIT`
-- engines: `node >=12`
-- dependency: `ansi-regex`
-- unpacked size reported by npm: about 4 KB
-
-This is much lower risk than a native PTY dependency, but Ticket 3 can also implement a minimal local stripper if dependency footprint matters.
+Ticket 3 uses a small local ANSI/control-sequence stripper instead of adding another dependency.
+Tests cover plain cooldown text, ANSI-colored output, chunked output, provider false positives, one
+event per cooldown episode, and rolling buffer caps.
 
 ## Cooldown Behavior Model
 
