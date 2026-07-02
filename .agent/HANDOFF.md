@@ -18,7 +18,7 @@ None.
 
 ## Status
 
-v0.2 interactive wrapper groundwork is active. Ticket 0 research, Ticket 1 `continuity shell --dry-run`, Ticket 2 PTY runner foundation, Ticket 3 PTY stream cooldown detector, Ticket 4 interactive cooldown state recording, Ticket 5 graceful pause, and Ticket 6 wait/resume are complete in the working tree. The v0.1 cooldown watchdog core remains unchanged.
+v0.2 interactive wrapper groundwork is active. Ticket 0 research, Ticket 1 `continuity shell --dry-run`, Ticket 2 PTY runner foundation, Ticket 3 PTY stream cooldown detector, Ticket 4 interactive cooldown state recording, Ticket 5 graceful pause, Ticket 6 wait/resume, and Ticket 7 existing cooldown adoption are complete in the working tree. The v0.1 cooldown watchdog core remains unchanged.
 
 ## Goal
 
@@ -26,7 +26,7 @@ Build a Linux-first experimental interactive wrapper without changing cooldown w
 
 ## Current Stage
 
-Ticket 6 complete; next ticket is adopting existing interactive `cooling_down` state.
+Ticket 7 complete; next ticket is docs and smoke checklist.
 
 ## What Changed
 
@@ -51,6 +51,8 @@ Ticket 6 complete; next ticket is adopting existing interactive `cooling_down` s
 - Added interactive resume command selection: explicit session id first, `codex resume --last` fallback.
 - Recorded `interactive_resume_target`, `interactive_resume_target_provenance`, and incremented `watch_resume_count` for interactive auto-resumes.
 - Added tests for same-session interactive resume and `--last` fallback.
+- Added adoption of existing interactive `cooling_down` state on `continuity shell` restart.
+- Added tests for adoption, immediate resume when `next_resume_at` is past, broken cooldown abort, and refusing non-interactive cooldown adoption.
 
 ## Files Touched
 
@@ -94,20 +96,20 @@ Passed.
 ## Known Risks
 
 - Real Codex TUI smoke was not completed in this tool environment because it lacks a normal interactive terminal.
-- Interactive cooldown recording, graceful pause, and wait/resume are implemented. Existing `cooling_down` adoption is not.
+- Interactive cooldown recording, graceful pause, wait/resume, and existing interactive `cooling_down` adoption are implemented.
 - Real provider smoke tests remain opt-in and are not part of CI.
 - Provider CLI output and session-id extraction can change.
 - Direct `codex` processes cannot be adopted after the fact.
 
 ## Unfinished Work
 
-- Ticket 7: adopt existing interactive `cooling_down` state when `continuity shell` restarts.
+- Ticket 8: update README/docs and add interactive smoke checklist.
 - Manual Linux TTY smoke for `continuity shell`.
 
 ## Next Exact Steps
 
-1. Review and commit Ticket 6 changes if accepted.
-2. Start Ticket 7 existing cooldown adoption.
+1. Review and commit Ticket 7 changes if accepted.
+2. Start Ticket 8 docs and smoke checklist.
 3. Run manual Linux TTY smoke before claiming the interactive runtime path fully accepted.
 
 ## Do Not Redo

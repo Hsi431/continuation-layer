@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -19,6 +19,29 @@ function makeRepo() {
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+function writeJson(path, value) {
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function setCoolingDownState(repo, changes = {}) {
+  const statePath = join(repo, '.agent', 'state.json');
+  const state = readJson(statePath);
+  writeJson(statePath, {
+    ...state,
+    status: 'cooling_down',
+    mode: 'cooldown_resume',
+    current_session_id: 'sess-existing',
+    next_resume_at: '2026-06-29T00:05:00.000Z',
+    cooldown_reason: 'usage limit reached',
+    cooldown_detected_at: '2026-06-29T00:00:00.000Z',
+    reset_time_provenance: 'provider_relative',
+    last_event: 'interactive_cooldown_detected',
+    interactive_shell_status: 'waiting_for_resume',
+    last_tty_event: 'interactive_shell_aborted',
+    ...changes,
+  });
 }
 
 class FakeInput extends EventEmitter {
@@ -355,4 +378,91 @@ test('interactive shell falls back to codex resume --last without a session id',
   assert.deepEqual(commands[1].args, ['resume', '-C', repo, '--last']);
   assert.equal(state.interactive_resume_target, '--last');
   assert.equal(state.interactive_resume_target_provenance, 'codex_last');
+});
+
+test('interactive shell adopts existing interactive cooling_down state', async () => {
+  const repo = makeRepo();
+  setCoolingDownState(repo);
+  let nowMs = Date.parse('2026-06-29T00:00:00.000Z');
+  const sleeps = [];
+  const commands = [];
+
+  await runInteractiveShell({
+    cwd: repo,
+    clock: () => new Date(nowMs),
+    sleep: async (milliseconds) => {
+      sleeps.push(milliseconds);
+      nowMs += milliseconds;
+    },
+    ptyRunner: async (spec) => {
+      commands.push(spec);
+      return { exitCode: 0, signal: null };
+    },
+  });
+
+  assert.deepEqual(sleeps, [300000]);
+  assert.equal(commands.length, 1);
+  assert.deepEqual(commands[0].args, ['resume', '-C', repo, 'sess-existing']);
+});
+
+test('interactive shell immediately resumes an expired existing cooldown', async () => {
+  const repo = makeRepo();
+  setCoolingDownState(repo, {
+    next_resume_at: '2026-06-29T00:05:00.000Z',
+  });
+  const sleeps = [];
+  const commands = [];
+
+  await runInteractiveShell({
+    cwd: repo,
+    clock: () => new Date('2026-06-29T00:06:00.000Z'),
+    sleep: async (milliseconds) => sleeps.push(milliseconds),
+    ptyRunner: async (spec) => {
+      commands.push(spec);
+      return { exitCode: 0, signal: null };
+    },
+  });
+
+  assert.deepEqual(sleeps, []);
+  assert.deepEqual(commands[0].args, ['resume', '-C', repo, 'sess-existing']);
+});
+
+test('interactive shell rejects broken existing cooling_down state', async () => {
+  const repo = makeRepo();
+  setCoolingDownState(repo, { next_resume_at: null });
+  let started = false;
+
+  await assert.rejects(
+    runInteractiveShell({
+      cwd: repo,
+      ptyRunner: async () => {
+        started = true;
+        return { exitCode: 0, signal: null };
+      },
+    }),
+    /missing next_resume_at/,
+  );
+  assert.equal(started, false);
+});
+
+test('interactive shell does not adopt non-interactive cooling_down state', async () => {
+  const repo = makeRepo();
+  setCoolingDownState(repo, {
+    last_event: 'cooldown_detected',
+    interactive_shell_status: null,
+    last_tty_event: null,
+  });
+  let started = false;
+
+  await assert.rejects(
+    runInteractiveShell({
+      cwd: repo,
+      ptyRunner: async () => {
+        started = true;
+        return { exitCode: 0, signal: null };
+      },
+    }),
+    /Cannot adopt cooling_down state with continuity shell/,
+  );
+  assert.equal(started, false);
 });

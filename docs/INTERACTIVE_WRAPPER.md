@@ -1,11 +1,11 @@
 # Interactive Terminal Wrapper
 
-This document records Ticket 0 research plus Ticket 1 through Ticket 6 groundwork for the planned
+This document records Ticket 0 research plus Ticket 1 through Ticket 7 groundwork for the planned
 v0.2 interactive wrapper.
 
 Status: `continuity shell --dry-run`, the initial PTY runner foundation, and PTY output cooldown
 detection/state recording/graceful pause/wait/resume are implemented. Existing cooldown adoption is
-not implemented yet.
+implemented for interactive cooldown state.
 
 ## Scope
 
@@ -60,6 +60,10 @@ codex resume --last
 ```
 
 when no explicit session id is available.
+
+Ticket 7 lets a restarted `continuity shell` adopt existing interactive `cooling_down` state. It
+does not start a new Codex task. It waits until the recorded `next_resume_at`, then launches
+interactive resume. If `next_resume_at` has already passed, it resumes immediately.
 
 ## Codex CLI Observations
 
@@ -244,6 +248,13 @@ Ticket 6 coverage verifies:
 - `interactive_resume_target_provenance` is recorded
 - `watch_resume_count` increments for automatic interactive resumes
 - PTY pass-through resumes in a second PTY run
+
+Ticket 7 coverage verifies:
+
+- existing interactive `cooling_down` state is adopted
+- expired `next_resume_at` resumes immediately
+- missing `next_resume_at` aborts without starting Codex
+- non-interactive `cooling_down` state is not adopted by `continuity shell`
 
 ## Cooldown Behavior Model
 

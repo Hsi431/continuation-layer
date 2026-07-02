@@ -24,6 +24,10 @@ export async function runInteractiveShell({
   const repoRoot = resolveRepoRoot(cwd);
   const { config, state } = loadAgentState(repoRoot);
   const providerAdapter = adapter ?? getProviderAdapter(config.provider);
+  if (state.status === 'cooling_down') {
+    assertAdoptableInteractiveCooldown(state);
+  }
+
   const startedAt = clock().toISOString();
   transitionState(
     repoRoot,
@@ -37,13 +41,28 @@ export async function runInteractiveShell({
     startedAt,
   );
 
-  let commandSpec = providerAdapter.startSessionCommand({
-    repoRoot,
-    prompt,
-    nonInteractive: false,
-  });
   const runs = [];
   let interactiveResumes = 0;
+  let commandSpec = null;
+
+  if (state.status === 'cooling_down') {
+    const resume = await prepareInteractiveResume({
+      repoRoot,
+      providerAdapter,
+      stderr,
+      clock,
+      sleep,
+      onEvent,
+    });
+    commandSpec = resume.commandSpec;
+    interactiveResumes += 1;
+  } else {
+    commandSpec = providerAdapter.startSessionCommand({
+      repoRoot,
+      prompt,
+      nonInteractive: false,
+    });
+  }
 
   while (true) {
     const result = await runInteractivePtyOnce({
@@ -134,40 +153,16 @@ export async function runInteractiveShell({
       };
     }
 
-    await waitUntilTimestamp(latest.state.next_resume_at, {
+    const resume = await prepareInteractiveResume({
+      repoRoot,
+      providerAdapter,
+      stderr,
       clock,
       sleep,
-      heartbeatMs: latest.config.watch_heartbeat_minutes * 60 * 1000,
-      onHeartbeat: (event) => {
-        stderr?.write?.(`[continuity] Waiting: ${formatDuration(event.remainingMs)} remaining\n`);
-        onEvent({ type: 'interactive_heartbeat', ...event });
-      },
+      onEvent,
     });
-
-    const afterWait = loadAgentState(repoRoot);
-    const target = selectInteractiveResumeTarget(afterWait.state);
+    commandSpec = resume.commandSpec;
     interactiveResumes += 1;
-    transitionState(
-      repoRoot,
-      {
-        watch_resume_count: afterWait.state.watch_resume_count + 1,
-        interactive_shell_status: 'resuming',
-        interactive_resume_target: target.value,
-        interactive_resume_target_provenance: target.provenance,
-        last_tty_event: 'interactive_shell_resuming',
-      },
-      'interactive_shell_resuming',
-      `interactive shell resuming with ${target.value}`,
-      clock().toISOString(),
-    );
-    stderr?.write?.(`[continuity] Resuming Codex session: ${target.value}\n`);
-    onEvent({ type: 'interactive_resuming', target: target.value, provenance: target.provenance });
-
-    commandSpec = providerAdapter.resumeSessionCommand({
-      repoRoot,
-      sessionId: target.sessionId,
-      nonInteractive: false,
-    });
   }
 }
 
@@ -260,6 +255,74 @@ function selectInteractiveResumeTarget(state) {
     sessionId: null,
     provenance: 'codex_last',
   };
+}
+
+async function prepareInteractiveResume({
+  repoRoot,
+  providerAdapter,
+  stderr,
+  clock,
+  sleep,
+  onEvent,
+}) {
+  const latest = loadAgentState(repoRoot);
+  const limitReason = interactiveLimitReason(latest.state, latest.config, clock());
+  if (limitReason) {
+    throw new Error(limitReason);
+  }
+
+  await waitUntilTimestamp(latest.state.next_resume_at, {
+    clock,
+    sleep,
+    heartbeatMs: latest.config.watch_heartbeat_minutes * 60 * 1000,
+    onHeartbeat: (event) => {
+      stderr?.write?.(`[continuity] Waiting: ${formatDuration(event.remainingMs)} remaining\n`);
+      onEvent({ type: 'interactive_heartbeat', ...event });
+    },
+  });
+
+  const afterWait = loadAgentState(repoRoot);
+  const target = selectInteractiveResumeTarget(afterWait.state);
+  transitionState(
+    repoRoot,
+    {
+      watch_resume_count: afterWait.state.watch_resume_count + 1,
+      interactive_shell_status: 'resuming',
+      interactive_resume_target: target.value,
+      interactive_resume_target_provenance: target.provenance,
+      last_tty_event: 'interactive_shell_resuming',
+    },
+    'interactive_shell_resuming',
+    `interactive shell resuming with ${target.value}`,
+    clock().toISOString(),
+  );
+  stderr?.write?.(`[continuity] Resuming Codex session: ${target.value}\n`);
+  onEvent({ type: 'interactive_resuming', target: target.value, provenance: target.provenance });
+
+  return {
+    target,
+    commandSpec: providerAdapter.resumeSessionCommand({
+      repoRoot,
+      sessionId: target.sessionId,
+      nonInteractive: false,
+    }),
+  };
+}
+
+function assertAdoptableInteractiveCooldown(state) {
+  if (!state.next_resume_at) {
+    throw new Error('Cannot adopt interactive cooldown: missing next_resume_at');
+  }
+
+  const hasInteractiveMetadata =
+    state.last_event?.startsWith('interactive_') ||
+    state.last_tty_event?.startsWith('interactive_') ||
+    (state.interactive_shell_status !== undefined && state.interactive_shell_status !== null);
+  if (!hasInteractiveMetadata) {
+    throw new Error(
+      'Cannot adopt cooling_down state with continuity shell; use continuity watch or continuity resume',
+    );
+  }
 }
 
 function interactiveLimitReason(state, config, now) {

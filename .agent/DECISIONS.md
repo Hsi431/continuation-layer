@@ -137,3 +137,20 @@ Related files:
 
 Consequence: Interactive resume prefers `codex resume <session_id>` and falls back to
 `codex resume --last`, recording `interactive_resume_target_provenance`.
+
+## Decision: continuity shell adopts only interactive cooldown state
+
+Reason: `continuity watch` and `continuity shell` are different supervision paths. Restarting the
+interactive wrapper should recover an interrupted interactive wait, but it should not steal a
+non-interactive watchdog cooldown.
+
+Date: 2026-07-02
+
+Related files:
+
+- `src/interactive/shell-session.mjs`
+- `tests/interactive-runner.test.mjs`
+
+Consequence: `continuity shell` adopts `cooling_down` only when interactive metadata is present. A
+non-interactive `cooling_down` state is rejected with guidance to use `continuity watch` or
+`continuity resume`.

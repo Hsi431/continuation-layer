@@ -2,7 +2,7 @@
 
 ## Next Action
 
-Review and commit Ticket 6 wait/resume, then start Ticket 7 existing cooldown adoption.
+Review and commit Ticket 7 existing cooldown adoption, then start Ticket 8 docs and smoke checklist.
 
 ## Target Files
 
@@ -24,7 +24,7 @@ Review and commit Ticket 6 wait/resume, then start Ticket 7 existing cooldown ad
 
 - Do not change watchdog core logic.
 - Do not change recovery mode semantics.
-- Keep Ticket 7 focused on adopting existing interactive `cooling_down`; do not add extra dashboard or wrapper UI.
+- Keep Ticket 8 documentation honest: Linux-first, experimental, no direct `codex` adoption.
 - Keep `.agent` as a sanitized dogfood example only; do not commit runtime logs.
 
 ## First Command To Inspect
@@ -35,4 +35,4 @@ git status --short
 
 ## Stop Condition
 
-Stop if adoption would start a new Codex task while state is already `cooling_down`.
+Stop if docs imply Windows native support, Claude Code interactive support, or direct running `codex` can be adopted.
