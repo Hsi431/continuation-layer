@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 
 import { DEFAULT_CONFIG } from '../src/core/constants.mjs';
 import { initAgent } from '../src/core/agent-state.mjs';
-import { RECOVERY_MODES, runRecoveryCheck } from '../src/core/recovery.mjs';
+import { RECOVERY_MODES, hasUnmergedStatus, runRecoveryCheck } from '../src/core/recovery.mjs';
 
 function makeRepo() {
   const dir = mkdtempSync(join(tmpdir(), 'continuity-recovery-'));
@@ -31,6 +31,31 @@ function makeHandoffStale(repo) {
   const old = new Date('2026-06-29T00:00:00.000Z');
   utimesSync(join(repo, '.agent', 'HANDOFF.md'), old, old);
 }
+
+function gitOutput(repo, args) {
+  return execFileSync('git', args, {
+    cwd: repo,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+}
+
+test('hasUnmergedStatus detects porcelain conflict codes', () => {
+  assert.equal(hasUnmergedStatus('UU conflict.txt'), true);
+  assert.equal(hasUnmergedStatus('AA file.txt'), true);
+  assert.equal(hasUnmergedStatus('DD deleted.txt'), true);
+  assert.equal(hasUnmergedStatus('AU added-by-us.txt'), true);
+  assert.equal(hasUnmergedStatus('UD deleted-by-them.txt'), true);
+  assert.equal(hasUnmergedStatus('UA added-by-them.txt'), true);
+  assert.equal(hasUnmergedStatus('DU deleted-by-us.txt'), true);
+});
+
+test('hasUnmergedStatus ignores ordinary porcelain statuses', () => {
+  assert.equal(hasUnmergedStatus(' M changed.txt'), false);
+  assert.equal(hasUnmergedStatus('M  staged.txt'), false);
+  assert.equal(hasUnmergedStatus('?? untracked.txt'), false);
+  assert.equal(hasUnmergedStatus(''), false);
+});
 
 test('recovery check reads handoff, git status, and git diff', () => {
   const repo = makeRepo();
@@ -142,6 +167,7 @@ test('cooldown resume fails when session id is missing', () => {
 
 test('cooldown resume fails when git has unresolved conflicts', () => {
   const repo = makeRepo();
+  const baseBranch = gitOutput(repo, ['branch', '--show-current']);
   writeFileSync(join(repo, 'conflict.txt'), 'base\n');
   execFileSync('git', ['add', 'conflict.txt'], { cwd: repo, stdio: 'ignore' });
   execFileSync(
@@ -157,7 +183,7 @@ test('cooldown resume fails when git has unresolved conflicts', () => {
     ['-c', 'user.email=test@example.com', '-c', 'user.name=Test', 'commit', '-m', 'feature'],
     { cwd: repo, stdio: 'ignore' },
   );
-  execFileSync('git', ['checkout', 'master'], { cwd: repo, stdio: 'ignore' });
+  execFileSync('git', ['checkout', baseBranch], { cwd: repo, stdio: 'ignore' });
   writeFileSync(join(repo, 'conflict.txt'), 'master\n');
   execFileSync('git', ['add', 'conflict.txt'], { cwd: repo, stdio: 'ignore' });
   execFileSync(
@@ -165,11 +191,30 @@ test('cooldown resume fails when git has unresolved conflicts', () => {
     ['-c', 'user.email=test@example.com', '-c', 'user.name=Test', 'commit', '-m', 'master'],
     { cwd: repo, stdio: 'ignore' },
   );
+  let mergeStdout = '';
+  let mergeStderr = '';
   try {
-    execFileSync('git', ['merge', 'feature'], { cwd: repo, stdio: 'ignore' });
-  } catch {
+    execFileSync('git', ['merge', '--no-commit', '--no-ff', 'feature'], {
+      cwd: repo,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (error) {
+    mergeStdout = error.stdout ?? '';
+    mergeStderr = error.stderr ?? '';
     // Expected conflict.
   }
+  const status = gitOutput(repo, ['status', '--short']);
+  assert.equal(
+    hasUnmergedStatus(status),
+    true,
+    [
+      'fixture did not create unresolved conflict',
+      `git status --short:\n${status || '<empty>'}`,
+      `git merge stdout:\n${mergeStdout || '<empty>'}`,
+      `git merge stderr:\n${mergeStderr || '<empty>'}`,
+    ].join('\n\n'),
+  );
 
   const result = runRecoveryCheck({
     repoRoot: repo,

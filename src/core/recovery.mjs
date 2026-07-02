@@ -94,7 +94,7 @@ function isCompleteHandoff(text) {
   );
 }
 
-function hasUnmergedStatus(status) {
+export function hasUnmergedStatus(status) {
   return String(status)
     .split('\n')
     .some((line) => UNMERGED_STATUS.includes(line.slice(0, 2)));
