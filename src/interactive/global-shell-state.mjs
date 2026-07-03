@@ -40,6 +40,7 @@ export function makeInitialGlobalShellState({
     status: 'idle',
     current_session_id: null,
     next_resume_at: null,
+    usage_window_started_at: null,
     cooldown_detected_at: null,
     reset_time_provenance: null,
     interactive_resume_target: null,
@@ -120,7 +121,7 @@ export function recordGlobalInteractiveCooldown({
     now,
     defaultSeconds: DEFAULT_CONFIG.cooldown_default_seconds,
     bufferSeconds: DEFAULT_CONFIG.cooldown_buffer_seconds,
-    usageWindowStartedAt: null,
+    usageWindowStartedAt: existing.usage_window_started_at,
     cooldownDetectedAt,
   });
   const nextResumeAt = resumePlan.nextResumeAt.toISOString();

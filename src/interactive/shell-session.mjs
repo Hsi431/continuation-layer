@@ -110,6 +110,7 @@ async function runProjectInteractiveShell({
     repoRoot,
     {
       interactive_shell_started_at: state.interactive_shell_started_at ?? startedAt,
+      usage_window_started_at: state.usage_window_started_at ?? startedAt,
       interactive_shell_status: 'running',
       last_tty_event: 'interactive_shell_started',
     },
@@ -288,6 +289,7 @@ async function runGlobalInteractiveShell({
     stateDir: globalStateDir,
     state: {
       ...startState,
+      usage_window_started_at: startState.usage_window_started_at ?? startedAt,
       status: adoptingCooldown ? startState.status : 'running',
     },
     event: 'interactive_shell_started',

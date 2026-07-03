@@ -18,7 +18,7 @@
   "watch_started_at": null,
   "watch_resume_count": 0,
   "last_watch_event": null,
-  "last_event": "codex_alias_checkpoint_written",
+  "last_event": "usage_window_anchor_checkpoint_written",
   "created_at": "2026-06-29T07:39:32Z",
-  "updated_at": "2026-07-02T23:54:07Z"
+  "updated_at": "2026-07-03T00:22:47Z"
 }

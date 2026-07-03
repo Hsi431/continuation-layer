@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { initAgent } from '../src/core/agent-state.mjs';
 import { runInteractiveShell } from '../src/interactive/shell-session.mjs';
 import { runPtyCommand, TTY_REQUIRED_MESSAGE } from '../src/interactive/pty-runner.mjs';
+import { codexAdapter } from '../src/providers/codex.mjs';
 
 function makeRepo() {
   const dir = mkdtempSync(join(tmpdir(), 'continuity-interactive-'));
@@ -27,6 +28,14 @@ function readJson(path) {
 
 function writeJson(path, value) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function makeNoResetAdapter() {
+  return {
+    ...codexAdapter,
+    parseResetTime: () => null,
+    parseResetTimeDetails: () => null,
+  };
 }
 
 function setCoolingDownState(repo, changes = {}) {
@@ -225,6 +234,20 @@ test('interactive shell builds a Codex TUI command through the PTY runner', asyn
   assert.equal(readJson(join(repo, '.agent', 'state.json')).interactive_shell_status, 'exited');
 });
 
+test('project interactive shell sets usage_window_started_at on start', async () => {
+  const repo = makeRepo();
+
+  await runInteractiveShell({
+    cwd: repo,
+    clock: () => new Date('2026-06-29T00:00:00.000Z'),
+    ptyRunner: async () => ({ exitCode: 0, signal: null }),
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.equal(state.usage_window_started_at, '2026-06-29T00:00:00.000Z');
+  assert.equal(state.interactive_shell_started_at, '2026-06-29T00:00:00.000Z');
+});
+
 test('interactive shell outside git enters global mode and spawns Codex in cwd', async () => {
   const cwd = makeDir();
   const stateDir = makeDir('continuity-global-state-');
@@ -255,6 +278,23 @@ test('interactive shell outside git enters global mode and spawns Codex in cwd',
   assert.match(stderr.text, /No git repository found/);
   assert.match(stderr.text, /Starting Global Shell Mode/);
   assert.match(stderr.text, /Project handoff, git recovery, and \.agent state are disabled/);
+});
+
+test('global shell state records usage_window_started_at on start', async () => {
+  const cwd = makeDir();
+  const stateDir = makeDir('continuity-global-state-');
+
+  await runInteractiveShell({
+    cwd,
+    globalStateDir: stateDir,
+    clock: () => new Date('2026-06-29T00:00:00.000Z'),
+    ptyRunner: async () => ({ exitCode: 0, signal: null }),
+  });
+  const state = readJson(join(stateDir, 'global-shell-state.json'));
+
+  assert.equal(state.mode, 'global_shell');
+  assert.equal(state.usage_window_started_at, '2026-06-29T00:00:00.000Z');
+  assert.equal(state.status, 'idle');
 });
 
 test('interactive shell outside git records cooldown in global state without .agent', async () => {
@@ -297,6 +337,71 @@ test('interactive shell outside git records cooldown in global state without .ag
     ),
     true,
   );
+});
+
+test('global shell cooldown uses usage window anchor fallback', async () => {
+  const cwd = makeDir();
+  const stateDir = makeDir('continuity-global-state-');
+  const adapter = makeNoResetAdapter();
+  const child = {
+    kill() {},
+  };
+  const times = [
+    '2026-06-29T00:00:00.000Z',
+    '2026-06-29T04:50:00.000Z',
+    '2026-06-29T04:50:00.000Z',
+  ];
+  let timeIndex = 0;
+
+  await runInteractiveShell({
+    cwd,
+    adapter,
+    globalStateDir: stateDir,
+    clock: () => new Date(times[Math.min(timeIndex++, times.length - 1)]),
+    ptyRunner: async (_spec, options) => {
+      options.onData('usage limit reached');
+      options.onInput('\u0003', { child });
+      return { exitCode: null, signal: 'SIGINT' };
+    },
+  });
+  const state = readJson(join(stateDir, 'global-shell-state.json'));
+
+  assert.equal(state.usage_window_started_at, '2026-06-29T00:00:00.000Z');
+  assert.equal(state.cooldown_detected_at, '2026-06-29T04:50:00.000Z');
+  assert.equal(state.next_resume_at, '2026-06-29T05:05:00.000Z');
+  assert.equal(state.reset_time_provenance, 'usage_window_anchor');
+  assert.equal(existsSync(join(cwd, '.agent')), false);
+});
+
+test('provider explicit reset still wins over usage window anchor', async () => {
+  const cwd = makeDir();
+  const stateDir = makeDir('continuity-global-state-');
+  const child = {
+    kill() {},
+  };
+  const times = [
+    '2026-06-29T00:00:00.000Z',
+    '2026-06-29T04:50:00.000Z',
+    '2026-06-29T04:50:00.000Z',
+  ];
+  let timeIndex = 0;
+
+  await runInteractiveShell({
+    cwd,
+    globalStateDir: stateDir,
+    clock: () => new Date(times[Math.min(timeIndex++, times.length - 1)]),
+    ptyRunner: async (_spec, options) => {
+      options.onData('usage limit reached. reset at 2026-06-29T06:00:00Z');
+      options.onInput('\u0003', { child });
+      return { exitCode: null, signal: 'SIGINT' };
+    },
+  });
+  const state = readJson(join(stateDir, 'global-shell-state.json'));
+
+  assert.equal(state.usage_window_started_at, '2026-06-29T00:00:00.000Z');
+  assert.equal(state.cooldown_detected_at, '2026-06-29T04:50:00.000Z');
+  assert.equal(state.next_resume_at, '2026-06-29T06:05:00.000Z');
+  assert.equal(state.reset_time_provenance, 'provider_reset_at');
 });
 
 test('global shell resumes with codex resume --last when no session id is detected', async () => {
@@ -410,6 +515,37 @@ test('interactive shell require-repo rejects non-git directories', async () => {
     /continuity must run inside a git repository/,
   );
   assert.equal(started, false);
+});
+
+test('project interactive cooldown uses usage window anchor fallback', async () => {
+  const repo = makeRepo();
+  const adapter = makeNoResetAdapter();
+  const child = {
+    kill() {},
+  };
+  const times = [
+    '2026-06-29T00:00:00.000Z',
+    '2026-06-29T04:50:00.000Z',
+    '2026-06-29T04:50:00.000Z',
+  ];
+  let timeIndex = 0;
+
+  await runInteractiveShell({
+    cwd: repo,
+    adapter,
+    clock: () => new Date(times[Math.min(timeIndex++, times.length - 1)]),
+    ptyRunner: async (_spec, options) => {
+      options.onData('usage limit reached');
+      options.onInput('\u0003', { child });
+      return { exitCode: null, signal: 'SIGINT' };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.equal(state.usage_window_started_at, '2026-06-29T00:00:00.000Z');
+  assert.equal(state.cooldown_detected_at, '2026-06-29T04:50:00.000Z');
+  assert.equal(state.next_resume_at, '2026-06-29T05:05:00.000Z');
+  assert.equal(state.reset_time_provenance, 'usage_window_anchor');
 });
 
 test('interactive shell records cooldown state, snapshot, event, and wrapper message', async () => {

@@ -2,30 +2,22 @@
 
 ## Next Action
 
-Review the `continuity codex` alias diff and commit if requested.
+Commit the interactive/global shell usage-window anchor fix if requested.
 
 ## Target Files
 
-- `bin/continuity.mjs`
-- `README.md`
-- `docs/INTERACTIVE_WRAPPER.md`
-- `docs/SMOKE_INTERACTIVE.md`
-- `docs/releases/v0.2.0.md`
-- `src/interactive/pty-runner.mjs`
+- `src/interactive/global-shell-state.mjs`
 - `src/interactive/shell-session.mjs`
-- `src/supervisor/supervisor.mjs`
-- `tests/docs-cli.test.mjs`
 - `tests/interactive-runner.test.mjs`
-- `tests/supervisor.test.mjs`
 - `.agent/HANDOFF.md`
 - `.agent/NEXT.md`
 - `.agent/DECISIONS.md`
 
 ## Constraints
 
-- Keep `continuity shell` as an alias for `continuity codex`.
-- Do not change interactive wrapper runtime behavior, cooldown detection, Global Shell Mode, Project
-  Shell Mode, recovery, or the PTY runner beyond naming and guidance.
+- Do not change PTY runner, stream detector, mode selection, CLI aliasing, package version, or the
+  v0.1 cooldown watchdog path.
+- Provider reset times must keep precedence over the local usage-window anchor.
 - Do not tag or publish in this pass.
 
 ## First Command To Inspect

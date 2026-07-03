@@ -240,3 +240,20 @@ Related files:
 
 Consequence: `continuity codex` is documented and listed first in help. `continuity shell` remains
 an alias that uses the same runtime path.
+
+## Decision: Interactive cooldown fallback uses the usage window anchor
+
+Reason: When a provider does not expose a reset time, fallback resume scheduling must be anchored to
+the provider usage window start, not to the later cooldown detection timestamp.
+
+Date: 2026-07-03
+
+Related files:
+
+- `src/interactive/shell-session.mjs`
+- `src/interactive/global-shell-state.mjs`
+- `tests/interactive-runner.test.mjs`
+
+Consequence: Project Shell Mode and Global Shell Mode set `usage_window_started_at` on interactive
+start. Interactive cooldown recording passes that anchor to the shared resume planner. Provider
+reset times still take precedence, and `cooldown_detected_at` is only the last fallback.
