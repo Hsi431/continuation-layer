@@ -297,7 +297,7 @@ test('watch rejects non-git directories with shell guidance', async () => {
       cwd: dir,
       prompt: 'work',
     }),
-    /continuity watch requires a git repository.*Use continuity shell for global interactive mode/s,
+    /continuity watch requires a git repository.*Use continuity codex for global interactive mode/s,
   );
 });
 

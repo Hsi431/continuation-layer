@@ -1,5 +1,5 @@
 export const TTY_REQUIRED_MESSAGE =
-  'continuity shell requires an interactive TTY.\nUse continuity watch for non-interactive tasks.';
+  'continuity codex requires an interactive TTY.\nUse continuity watch for non-interactive tasks.';
 
 export async function runPtyCommand(commandSpec, options = {}) {
   const {
@@ -125,7 +125,7 @@ async function loadNodePty() {
     return await import('node-pty');
   } catch (error) {
     throw new Error(
-      `Unable to load node-pty for continuity shell.\nRun npm install, then try again.\n${error.message}`,
+      `Unable to load node-pty for continuity codex.\nRun npm install, then try again.\n${error.message}`,
     );
   }
 }

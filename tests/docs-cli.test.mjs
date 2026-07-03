@@ -7,9 +7,9 @@ test('CLI help documents watch mode and direct Codex limitation', () => {
 
   assert.match(
     helpSource,
-    /shell \[prompt\]\s+Start Codex interactive TUI; falls back to Global Shell Mode outside git/,
+    /codex \[prompt\]\s+Start Codex interactive TUI under Continuation Layer wrapper[\s\S]*shell \[prompt\]\s+Alias for codex/,
   );
-  assert.match(helpSource, /--require-repo\s+For shell, fail outside git/);
+  assert.match(helpSource, /--require-repo\s+For codex\/shell, fail outside git/);
   assert.match(
     helpSource,
     /watch \[prompt\]\s+Start provider CLI under long-lived cooldown watchdog/,
@@ -27,7 +27,8 @@ test('README recommends watch mode and labels start as manual mode', () => {
   assert.match(readme, /continuity start "finish this task"/);
   assert.match(readme, /It does \*\*not\*\* wait through the reset window/);
   assert.match(readme, /Continuation Layer can only monitor provider processes it starts/);
-  assert.match(readme, /continuity shell/);
+  assert.match(readme, /continuity codex/);
+  assert.match(readme, /`continuity shell` is an alias for `continuity codex`/);
   assert.match(readme, /Interactive terminal wrapper support is experimental and Linux-first/);
 });
 
@@ -45,21 +46,38 @@ test('interactive smoke docs state Linux-first wrapper limitations', () => {
   const docs = readFileSync(new URL('../docs/SMOKE_INTERACTIVE.md', import.meta.url), 'utf8');
 
   assert.match(docs, /manual and Linux-first/);
+  assert.match(docs, /continuity codex --dry-run/);
   assert.match(docs, /continuity shell --dry-run/);
   assert.match(docs, /Direct already-running Codex sessions cannot be adopted/);
   assert.match(docs, /stty sane/);
 });
 
-test('shell dry-run uses the interactive provider command path', () => {
+test('codex and shell dry-run use the same interactive provider command path', () => {
   const helpSource = readFileSync(new URL('../bin/continuity.mjs', import.meta.url), 'utf8');
 
-  assert.match(helpSource, /kind === 'shell'/);
+  assert.match(helpSource, /function isInteractiveCodexCommand\(command\)/);
+  assert.match(helpSource, /command === 'codex' \|\| command === 'shell'/);
   assert.match(
     helpSource,
     /adapter\.startSessionCommand\(\{ repoRoot, prompt, nonInteractive: false \}\)/,
   );
-  assert.match(helpSource, /dryRunCommand\('shell', options\.prompt, \{ requireRepo/);
+  assert.match(helpSource, /dryRunCommand\(command, options\.prompt, \{ requireRepo/);
   assert.match(helpSource, /runInteractiveShell\(\{\s+prompt: options\.prompt,/);
   assert.match(helpSource, /requireRepo: options\.requireRepo/);
   assert.match(helpSource, /arg === '--require-repo'/);
+});
+
+test('codex outside git routes to the global interactive shell path', () => {
+  const helpSource = readFileSync(new URL('../bin/continuity.mjs', import.meta.url), 'utf8');
+
+  assert.match(helpSource, /isInteractiveCodexCommand\(kind\) && !requireRepo/);
+  assert.match(helpSource, /isInteractiveCodexCommand\(command\)/);
+  assert.match(helpSource, /runInteractiveShell\(\{\s+prompt: options\.prompt,/);
+});
+
+test('codex require-repo outside git keeps the repo-required failure path', () => {
+  const helpSource = readFileSync(new URL('../bin/continuity.mjs', import.meta.url), 'utf8');
+
+  assert.match(helpSource, /if \(isInteractiveCodexCommand\(kind\) && !requireRepo\)/);
+  assert.match(helpSource, /throw error/);
 });

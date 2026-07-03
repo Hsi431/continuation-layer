@@ -3,7 +3,7 @@
 This document records Ticket 0 research plus Ticket 1 through Ticket 7 groundwork for the planned
 v0.2 interactive wrapper.
 
-Status: `continuity shell --dry-run`, the initial PTY runner foundation, and PTY output cooldown
+Status: `continuity codex --dry-run`, the initial PTY runner foundation, and PTY output cooldown
 detection/state recording/graceful pause/wait/resume are implemented. Existing cooldown adoption is
 implemented for interactive cooldown state.
 
@@ -12,8 +12,10 @@ implemented for interactive cooldown state.
 v0.2 should add a Linux-first interactive wrapper for everyday Codex terminal use:
 
 ```sh
-continuity shell
+continuity codex
 ```
+
+`continuity shell` remains an alias for `continuity codex`.
 
 The wrapper should launch Codex itself, connect it to a real pseudo-terminal, observe terminal
 output for cooldown text, write the right shell state for the current mode, wait through reset
@@ -24,15 +26,16 @@ The wrapper is not a provider-limit bypass. It must wait for provider reset wind
 Ticket 1 added the dry-run command path:
 
 ```sh
+continuity codex --dry-run
+continuity codex --dry-run "explain repo"
 continuity shell --dry-run
-continuity shell --dry-run "explain repo"
 ```
 
 Ticket 2 added the first non-dry-run PTY launch path. It requires an interactive TTY and fails
 clearly in non-interactive environments:
 
 ```text
-continuity shell requires an interactive TTY.
+continuity codex requires an interactive TTY.
 Use continuity watch for non-interactive tasks.
 ```
 
@@ -48,7 +51,7 @@ the user to press Enter to pause or Ctrl-C to abort. Enter sends `SIGINT` to Cod
 request; Ctrl-C also sends `SIGINT` and leaves the already-written cooldown state intact. The wrapper
 does not hard-kill Codex by default. If Codex does not exit after the pause request, a grace timeout
 aborts the wrapper safely and leaves state as `cooling_down` so the user can exit Codex manually and
-rerun `continuity shell`.
+rerun `continuity codex`.
 
 Ticket 6 waits until `next_resume_at` after the user confirms pause, then launches interactive
 resume. It prefers:
@@ -65,13 +68,14 @@ codex resume --last
 
 when no explicit session id is available.
 
-Ticket 7 lets a restarted `continuity shell` adopt existing interactive `cooling_down` state. It
-does not start a new Codex task. It waits until the recorded `next_resume_at`, then launches
-interactive resume. If `next_resume_at` has already passed, it resumes immediately.
+Ticket 7 lets a restarted `continuity codex` or `continuity shell` adopt existing interactive
+`cooling_down` state. It does not start a new Codex task. It waits until the recorded
+`next_resume_at`, then launches interactive resume. If `next_resume_at` has already passed, it
+resumes immediately.
 
 ## Shell Modes
 
-`continuity shell` has two modes.
+`continuity codex` has two modes. `continuity shell` is an alias.
 
 | Capability                  | Project Shell Mode          | Global Shell Mode                       |
 | --------------------------- | --------------------------- | --------------------------------------- |
@@ -131,7 +135,7 @@ global-shell-sessions.jsonl
 Use this flag when global fallback is not wanted:
 
 ```sh
-continuity shell --require-repo
+continuity codex --require-repo
 ```
 
 ## Codex CLI Observations
@@ -193,7 +197,7 @@ The wrapper must launch Codex itself:
 
 ```text
 user terminal
--> continuity shell
+-> continuity codex
 -> PTY wrapper
 -> codex interactive TUI
 ```
@@ -234,7 +238,7 @@ Dependency strategy:
 1. Implement a small PTY abstraction boundary.
 2. Load `node-pty` only in the real runner.
 3. Keep test coverage on fake PTY runners.
-4. Fail clearly when `continuity shell` is run without an interactive TTY.
+4. Fail clearly when `continuity codex` or `continuity shell` is run without an interactive TTY.
 5. Revisit optional dependency behavior after Linux smoke testing if native installation becomes a
    release issue.
 
@@ -323,7 +327,7 @@ Ticket 7 coverage verifies:
 - existing interactive `cooling_down` state is adopted
 - expired `next_resume_at` resumes immediately
 - missing `next_resume_at` aborts without starting Codex
-- non-interactive `cooling_down` state is not adopted by `continuity shell`
+- non-interactive `cooling_down` state is not adopted by `continuity codex` or `continuity shell`
 
 Blocker coverage verifies:
 
@@ -359,7 +363,7 @@ PTY output contains cooldown text
 
 If Codex does not exit before the pause grace timeout, the wrapper stops waiting on the child,
 preserves `cooling_down` state, and tells the user to exit Codex manually before rerunning
-`continuity shell`. v0.2 does not hard-kill Codex by default. A forced termination option can be
+`continuity codex`. v0.2 does not hard-kill Codex by default. A forced termination option can be
 added later or behind an explicit flag.
 
 ## State Notes

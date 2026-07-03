@@ -555,7 +555,7 @@ function startPauseGraceTimer({ context, stderr, sleep, pauseGraceSeconds, isFin
       timedOut();
       stderr?.write?.('[continuity] Codex did not exit after pause request.\n');
       stderr?.write?.('[continuity] State remains cooling_down.\n');
-      stderr?.write?.('[continuity] Exit Codex manually, then rerun: continuity shell\n');
+      stderr?.write?.('[continuity] Exit Codex manually, then rerun: continuity codex\n');
       context.finish?.({
         exitCode: null,
         signal: 'SIGINT',
@@ -727,7 +727,7 @@ function assertAdoptableInteractiveCooldown(state) {
     (state.interactive_shell_status !== undefined && state.interactive_shell_status !== null);
   if (!hasInteractiveMetadata) {
     throw new Error(
-      'Cannot adopt cooling_down state with continuity shell; use continuity watch or continuity resume',
+      'Cannot adopt cooling_down state with continuity codex; use continuity watch or continuity resume',
     );
   }
 }

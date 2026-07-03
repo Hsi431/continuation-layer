@@ -145,7 +145,7 @@ export async function watchManagedSession({
     throw new Error(
       [
         'continuity watch requires a git repository because it writes .agent state and uses git recovery.',
-        'Use continuity shell for global interactive mode.',
+        'Use continuity codex for global interactive mode.',
       ].join('\n'),
     );
   }

@@ -601,7 +601,7 @@ test('interactive shell aborts safely when pause SIGINT does not exit child befo
   assert.equal(state.current_session_id, 'sess-stuck');
   assert.match(stderr.text, /Codex did not exit after pause request/);
   assert.match(stderr.text, /State remains cooling_down/);
-  assert.match(stderr.text, /Exit Codex manually, then rerun: continuity shell/);
+  assert.match(stderr.text, /Exit Codex manually, then rerun: continuity codex/);
 });
 
 test('interactive shell preserves state and aborts wrapper on Ctrl-C after cooldown', async () => {
@@ -748,7 +748,7 @@ test('interactive shell does not adopt non-interactive cooling_down state', asyn
         return { exitCode: 0, signal: null };
       },
     }),
-    /Cannot adopt cooling_down state with continuity shell/,
+    /Cannot adopt cooling_down state with continuity codex/,
   );
   assert.equal(started, false);
 });

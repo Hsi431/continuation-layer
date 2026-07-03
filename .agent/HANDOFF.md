@@ -18,32 +18,26 @@ None.
 
 ## Status
 
-Global Shell Mode for `continuity shell` is implemented, validated, smoke-tested, and ready to
-commit.
+`continuity codex` is implemented as the recommended interactive Codex wrapper entrypoint, with
+`continuity shell` retained as an alias.
 
 ## Goal
 
-Allow `continuity shell` to run outside git repositories as an interactive Codex cooldown wrapper
-without weakening repo-bound project continuity or `continuity watch`.
+Make `continuity codex` the primary command users run instead of direct `codex`, while preserving
+the existing `continuity shell` runtime behavior as an alias.
 
 ## What Changed
 
-- `continuity shell` now auto-detects Project Shell Mode inside git and Global Shell Mode outside
-  git.
-- Added `continuity shell --require-repo` to preserve the old repo-required failure behavior.
-- Added global shell state under `$XDG_STATE_HOME/continuation-layer/`, falling back to
-  `~/.local/state/continuation-layer/`.
-- Added global shell state files:
-  - `global-shell-state.json`
-  - `global-shell-sessions.jsonl`
-- Global mode launches Codex in the current working directory, records cooldown state, waits until
-  `next_resume_at`, resumes explicit detected session ids, and falls back to `codex resume --last`.
-- Global mode does not create `.agent/`, does not run git recovery, and does not claim handoff,
-  child continuation, project snapshots, or overnight automation.
-- `continuity watch` remains repo-bound and now fails outside git with guidance to use
-  `continuity shell` for global interactive mode.
-- README, interactive wrapper docs, and smoke docs now distinguish Project Shell Mode and Global
-  Shell Mode.
+- Added `continuity codex` to the CLI as the main interactive wrapper command.
+- Kept `continuity shell` as an alias using the same Project Shell Mode and Global Shell Mode code
+  path.
+- Updated CLI help to list `codex [prompt]` before `shell [prompt]`.
+- Updated dry-run handling so `continuity codex --dry-run` and `continuity shell --dry-run` build
+  the same provider command, including prompt forwarding.
+- Updated non-git `--require-repo` behavior and watch guidance to point users at
+  `continuity codex`.
+- Updated README, interactive wrapper docs, smoke docs, release notes, and tests to present
+  `continuity codex` as the recommended entrypoint.
 
 ## Files Touched
 
@@ -51,8 +45,8 @@ without weakening repo-bound project continuity or `continuity watch`.
 - `README.md`
 - `docs/INTERACTIVE_WRAPPER.md`
 - `docs/SMOKE_INTERACTIVE.md`
-- `src/core/git.mjs`
-- `src/interactive/global-shell-state.mjs`
+- `docs/releases/v0.2.0.md`
+- `src/interactive/pty-runner.mjs`
 - `src/interactive/shell-session.mjs`
 - `src/supervisor/supervisor.mjs`
 - `tests/docs-cli.test.mjs`
@@ -80,39 +74,34 @@ Passed.
 
 ## Manual Smoke
 
-- Global mode dry-run in `/tmp/continuity-shell-global-test` printed
-  `codex -C /tmp/continuity-shell-global-test`.
-- Global mode real TTY smoke with temporary `CODEX_HOME` and `XDG_STATE_HOME` printed the Global
-  Shell Mode notice, reached the Codex login TUI, wrote global shell state under `/tmp`, and did not
-  create `.agent/`.
-- Project mode dry-run in `/home/fnata_claw/continuation-layer` printed
-  `codex -C /home/fnata_claw/continuation-layer`.
-- Project mode real TTY smoke in a disposable git repo reached the Codex login TUI and wrote
-  repo-local `.agent` interactive shell state.
+- In `/tmp/continuity-codex-alias-test`, `continuity codex --dry-run` and
+  `continuity shell --dry-run` both printed `codex -C /tmp/continuity-codex-alias-test`.
+- In `/tmp/continuity-codex-alias-test`, prompt dry-runs for both commands printed
+  `codex -C /tmp/continuity-codex-alias-test 'explain this repo'`.
+- In `/home/fnata_claw/continuation-layer`, prompt dry-runs for both commands printed
+  `codex -C /home/fnata_claw/continuation-layer 'explain this repo'`.
+- In `/tmp/continuity-codex-alias-test`, `continuity codex --require-repo --dry-run` failed with
+  `continuity must run inside a git repository`.
 
 ## Important Decisions
 
-- Global Shell Mode is intentionally a cooldown wrapper only.
-- Explicit session-id resume in global mode only uses ids detected from Codex output or already
-  recorded in an adopted global cooldown.
-- `codex resume --last` in global mode is best-effort and marks state `failed` if that resume exits
-  nonzero.
-- `continuity watch` remains repo-bound.
+- `continuity codex` is the recommended interactive wrapper command.
+- `continuity shell` remains an alias for users who already adopted it.
+- Runtime Project Shell Mode, Global Shell Mode, cooldown detection, recovery, and PTY runner logic
+  were not intentionally changed beyond command naming and user-facing guidance.
 
 ## Known Risks
 
-- Real authenticated Codex task execution was not exercised; temporary `CODEX_HOME` smoke reached
-  the unauthenticated Codex login TUI.
-- Provider CLI output and session-id extraction can change.
-- Global Shell Mode has one minimal global state file and is not a multi-project project recovery
-  system.
+- Real interactive Codex TUI smoke was not rerun for this alias-only patch.
+- Source-level CLI tests cover the alias path because prior process-spawn style checks are brittle
+  in restricted test environments.
 
 ## Next Exact Steps
 
-1. Commit with `Support global interactive shell mode`.
-2. Push only if requested or approved.
-3. Review CI after push.
+1. Review the diff.
+2. Commit if requested.
+3. Push only if requested or approved.
 
 ## Last Updated
 
-2026-07-02T23:50:00Z
+2026-07-02T23:54:07Z

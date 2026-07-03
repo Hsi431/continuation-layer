@@ -71,8 +71,8 @@ Related files:
 - `tests/interactive-runner.test.mjs`
 - `package.json`
 
-Consequence: `node-pty` is a runtime dependency for `continuity shell`; automated tests use fake
-PTY adapters so CI does not require an interactive terminal.
+Consequence: `node-pty` is a runtime dependency for the interactive Codex wrapper; automated tests
+use fake PTY adapters so CI does not require an interactive terminal.
 
 ## Decision: Keep PTY cooldown stream detection dependency-light
 
@@ -185,7 +185,7 @@ Related files:
 
 Consequence: After Enter sends `SIGINT`, the wrapper waits for a grace timeout. If Codex still has
 not exited, the wrapper aborts safely, leaves `cooling_down` state intact, and tells the user to
-exit Codex manually before rerunning `continuity shell`.
+exit Codex manually before rerunning `continuity codex`.
 
 ## Decision: Global Shell Mode is cooldown wrapping, not project continuity
 
@@ -203,7 +203,7 @@ Related files:
 - `tests/supervisor.test.mjs`
 - `docs/INTERACTIVE_WRAPPER.md`
 
-Consequence: Outside git, `continuity shell` stores minimal state under the user-level
+Consequence: Outside git, the interactive Codex wrapper stores minimal state under the user-level
 Continuation Layer state directory and only supports cooldown detection, waiting, and best-effort
 interactive Codex resume. It does not create `.agent/`, run git recovery, write project snapshots,
 or provide handoff/continuation/overnight semantics.
@@ -220,5 +220,23 @@ Related files:
 - `bin/continuity.mjs`
 - `tests/supervisor.test.mjs`
 
-Consequence: `continuity watch` still fails outside git and points users to `continuity shell` for
+Consequence: `continuity watch` still fails outside git and points users to `continuity codex` for
 global interactive cooldown wrapping.
+
+## Decision: continuity codex is the primary interactive wrapper entrypoint
+
+Reason: The interactive wrapper is meant to replace everyday direct `codex` usage, and `shell` is
+too generic for that user-facing workflow.
+
+Date: 2026-07-02
+
+Related files:
+
+- `bin/continuity.mjs`
+- `README.md`
+- `docs/INTERACTIVE_WRAPPER.md`
+- `docs/SMOKE_INTERACTIVE.md`
+- `tests/docs-cli.test.mjs`
+
+Consequence: `continuity codex` is documented and listed first in help. `continuity shell` remains
+an alias that uses the same runtime path.

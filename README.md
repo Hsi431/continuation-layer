@@ -111,10 +111,13 @@ continuity watch "your task"
 For experimental interactive Codex-style terminal usage, use:
 
 ```sh
-continuity shell
+continuity codex
 ```
 
-`continuity shell` is Linux-first experimental v0.2 work. It launches Codex inside a PTY wrapper,
+Use `continuity codex` instead of running `codex` directly when you want interactive Codex with
+cooldown protection.
+
+`continuity codex` is Linux-first experimental v0.2 work. It launches Codex inside a PTY wrapper,
 observes terminal output for cooldown text, waits through reset windows after Codex exits or
 user-confirmed pause, and resumes with interactive `codex resume`.
 
@@ -122,7 +125,7 @@ It still cannot attach to an already-running direct `codex` process.
 
 ## Shell modes
 
-`continuity shell` auto-detects where it is running:
+`continuity codex` auto-detects where it is running:
 
 | Location                   | Mode               | State                           |
 | -------------------------- | ------------------ | ------------------------------- |
@@ -144,8 +147,10 @@ overnight continuation, project snapshots, or child continuation.
 To require full project continuity and reject global fallback:
 
 ```sh
-continuity shell --require-repo
+continuity codex --require-repo
 ```
+
+`continuity shell` is an alias for `continuity codex`.
 
 ---
 
@@ -369,17 +374,25 @@ continuity init --task-id my-task
 continuity watch "finish this task"
 ```
 
-### Run interactive Codex shell experimentally
+### Run interactive Codex experimentally
 
 ```sh
-continuity shell
-continuity shell "explain this repo"
-continuity shell --require-repo
+continuity codex
+continuity codex "explain this repo"
+continuity codex --require-repo
 ```
 
 This is Linux-first experimental interactive wrapper support. Use `continuity watch` for
-non-interactive long-running tasks. Outside git repositories, `continuity shell` enters Global Shell
+non-interactive long-running tasks. Outside git repositories, `continuity codex` enters Global Shell
 Mode and stores only minimal shell cooldown state outside the project.
+
+Advanced alias:
+
+```sh
+continuity shell
+```
+
+`continuity shell` is an alias for `continuity codex`.
 
 ### Run once
 
@@ -428,6 +441,7 @@ continuity new-task --task-id next-task
 ```sh
 continuity start --dry-run "refactor safely"
 continuity watch --dry-run "refactor safely"
+continuity codex --dry-run "refactor safely"
 continuity shell --dry-run "refactor safely"
 continuity resume --dry-run
 continuity continue --dry-run

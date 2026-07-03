@@ -2,7 +2,7 @@
 
 ## Next Action
 
-Commit the Global Shell Mode implementation with `Support global interactive shell mode`.
+Review the `continuity codex` alias diff and commit if requested.
 
 ## Target Files
 
@@ -10,8 +10,8 @@ Commit the Global Shell Mode implementation with `Support global interactive she
 - `README.md`
 - `docs/INTERACTIVE_WRAPPER.md`
 - `docs/SMOKE_INTERACTIVE.md`
-- `src/core/git.mjs`
-- `src/interactive/global-shell-state.mjs`
+- `docs/releases/v0.2.0.md`
+- `src/interactive/pty-runner.mjs`
 - `src/interactive/shell-session.mjs`
 - `src/supervisor/supervisor.mjs`
 - `tests/docs-cli.test.mjs`
@@ -23,9 +23,9 @@ Commit the Global Shell Mode implementation with `Support global interactive she
 
 ## Constraints
 
-- Do not weaken `continuity watch`; it must remain repo-bound.
-- Do not claim project handoff, git recovery, snapshots, child continuation, or overnight automation
-  in Global Shell Mode.
+- Keep `continuity shell` as an alias for `continuity codex`.
+- Do not change interactive wrapper runtime behavior, cooldown detection, Global Shell Mode, Project
+  Shell Mode, recovery, or the PTY runner beyond naming and guidance.
 - Do not tag or publish in this pass.
 
 ## First Command To Inspect
@@ -36,4 +36,4 @@ git status --short
 
 ## Stop Condition
 
-Stop if commit fails or a requested push/CI check reports a regression.
+Stop if validation regresses or a requested commit/push fails.

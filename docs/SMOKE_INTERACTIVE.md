@@ -17,7 +17,7 @@ Use a disposable non-git directory when testing Global Shell Mode:
 ```sh
 mkdir -p /tmp/continuity-shell-global-test
 cd /tmp/continuity-shell-global-test
-continuity shell
+continuity codex
 ```
 
 Expected:
@@ -29,8 +29,9 @@ Expected:
 ## 1. Dry Run
 
 ```sh
+continuity codex --dry-run
+continuity codex --dry-run "explain this repo"
 continuity shell --dry-run
-continuity shell --dry-run "explain this repo"
 ```
 
 Expected:
@@ -43,7 +44,7 @@ Expected:
 ## 2. Open Codex TUI In Project Shell Mode
 
 ```sh
-continuity shell
+continuity codex
 ```
 
 Expected:
@@ -62,7 +63,7 @@ reset
 
 ## 3. Resize
 
-While Codex is open under `continuity shell`, resize the terminal window.
+While Codex is open under `continuity codex`, resize the terminal window.
 
 Expected:
 
@@ -105,7 +106,7 @@ Expected:
 After an interactive cooldown has been recorded, stop the wrapper before resume, then run:
 
 ```sh
-continuity shell
+continuity codex
 ```
 
 Expected:
@@ -120,7 +121,7 @@ Expected:
 ```sh
 mkdir -p /tmp/continuity-shell-global-test
 cd /tmp/continuity-shell-global-test
-continuity shell
+continuity codex
 ```
 
 Expected:
@@ -135,7 +136,7 @@ Expected:
 No TTY:
 
 ```text
-continuity shell requires an interactive TTY.
+continuity codex requires an interactive TTY.
 Use continuity watch for non-interactive tasks.
 ```
 
@@ -162,6 +163,12 @@ codex
 
 Direct already-running Codex sessions cannot be adopted by Continuation Layer. Start interactive
 work through:
+
+```sh
+continuity codex
+```
+
+Alias:
 
 ```sh
 continuity shell

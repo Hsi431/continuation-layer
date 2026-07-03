@@ -57,6 +57,10 @@ function parseArgs(argv) {
   return { command, options };
 }
 
+function isInteractiveCodexCommand(command) {
+  return command === 'codex' || command === 'shell';
+}
+
 function printHelp() {
   console.log(`Usage: continuity <command> [options]
 
@@ -64,7 +68,8 @@ Commands:
   init                 Initialize .agent in the current git repo
   status [--json]      Show current durable state
   snapshot             Write .agent/AUTO_SNAPSHOT.md
-  shell [prompt]       Start Codex interactive TUI; falls back to Global Shell Mode outside git
+  codex [prompt]       Start Codex interactive TUI under Continuation Layer wrapper
+  shell [prompt]       Alias for codex
   watch [prompt]       Start provider CLI under long-lived cooldown watchdog
   start [prompt]       Manual one-shot provider run under supervisor
   resume               Resume a cooling_down task under supervisor
@@ -78,12 +83,12 @@ Options:
   --task-id <id>       Task id for init
   --provider <name>    Provider for init; default codex
   --json               Machine-readable status output
-  --dry-run            Print provider command without executing start/watch/shell/resume/continue
-  --require-repo       For shell, fail outside git instead of using Global Shell Mode
+  --dry-run            Print provider command without executing start/watch/codex/shell/resume/continue
+  --require-repo       For codex/shell, fail outside git instead of using Global Shell Mode
   --allow-early        Resume before next_resume_at
   --yes                Confirm child continuation startup
 
-Continuation Layer can only monitor provider processes started by continuity start or continuity watch.
+Continuation Layer can only monitor provider processes started by continuity start, continuity watch, or continuity codex.
 If you run codex directly, cooldown events cannot be captured or resumed automatically.
 `);
 }
@@ -219,7 +224,7 @@ function dryRunCommand(kind, prompt, { requireRepo = false, cwd = process.cwd() 
   try {
     repoRoot = resolveRepoRoot(cwd);
   } catch (error) {
-    if (kind === 'shell' && !requireRepo) {
+    if (isInteractiveCodexCommand(kind) && !requireRepo) {
       const adapter = getProviderAdapter('codex');
       return adapter.startSessionCommand({ repoRoot: cwd, prompt, nonInteractive: false });
     }
@@ -238,7 +243,7 @@ function dryRunCommand(kind, prompt, { requireRepo = false, cwd = process.cwd() 
     return adapter.startSessionCommand({ repoRoot, prompt, nonInteractive: true });
   }
 
-  if (kind === 'shell') {
+  if (isInteractiveCodexCommand(kind)) {
     return adapter.startSessionCommand({ repoRoot, prompt, nonInteractive: false });
   }
 
@@ -261,7 +266,7 @@ function dryRunCommand(kind, prompt, { requireRepo = false, cwd = process.cwd() 
 function watchRequiresRepoMessage() {
   return [
     'continuity watch requires a git repository because it writes .agent state and uses git recovery.',
-    'Use continuity shell for global interactive mode.',
+    'Use continuity codex for global interactive mode.',
   ].join('\n');
 }
 
@@ -364,10 +369,10 @@ async function main() {
     return;
   }
 
-  if (command === 'shell') {
+  if (isInteractiveCodexCommand(command)) {
     if (options.dryRun) {
       printCommandLine(
-        dryRunCommand('shell', options.prompt, { requireRepo: options.requireRepo }),
+        dryRunCommand(command, options.prompt, { requireRepo: options.requireRepo }),
       );
       return;
     }
