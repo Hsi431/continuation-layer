@@ -70,9 +70,12 @@ Expected:
 - repo-local `.agent` state records interactive shell events;
 - exiting Codex restores terminal raw mode.
 
-Project Shell Mode works in any initialized git repository, not only this repository. Run
-`continuity init --task-id <task-id>` once per project before expecting `.agent/` project
-continuity.
+Project Shell Mode works in any initialized git repository, not only this repository. Run this once
+per project before expecting `.agent/` project continuity:
+
+```sh
+continuity init --task-id <task-id>
+```
 
 If the terminal is left in a bad state:
 

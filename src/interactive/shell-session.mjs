@@ -922,9 +922,9 @@ function writeGlobalModeNotice(stderr, { notice = 'no_git' } = {}) {
 
   stderr?.write?.('[continuity] Starting Global Shell Mode.\n');
   if (notice === 'uninitialized_repo') {
-    stderr?.write?.(
-      '[continuity] Run `continuity init --task-id <task-id>` to enable project continuity.\n',
-    );
+    stderr?.write?.('[continuity] Run:\n');
+    stderr?.write?.('[continuity]   continuity init --task-id <task-id>\n');
+    stderr?.write?.('[continuity] to enable project continuity.\n');
   }
   stderr?.write?.('[continuity] Project handoff, git recovery, and .agent state are disabled.\n');
   stderr?.write?.('[continuity] Cooldown detection and best-effort Codex resume remain enabled.\n');

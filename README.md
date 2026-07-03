@@ -144,10 +144,15 @@ It still cannot attach to an already-running direct `codex` process.
 | Outside any git repository               | Global Shell Mode  | user-level global shell state   |
 | `--global`, even inside a git repository | Global Shell Mode  | user-level global shell state   |
 
-Project Shell Mode works in any initialized git repository. Run `continuity init --task-id <task-id>`
-once per project. It provides the full project continuity path: repo root detection, `.agent` state,
-mechanical snapshots, git status/diff recovery, interactive event recording, cooldown wait, and
-interactive resume.
+Project Shell Mode works in any initialized git repository. Run this once per project:
+
+```sh
+continuity init --task-id <task-id>
+```
+
+It provides the full project continuity path: repo root detection, `.agent` state, mechanical
+snapshots, git status/diff recovery, interactive event recording, cooldown wait, and interactive
+resume.
 
 Global Shell Mode is only a cooldown wrapper for everyday interactive Codex usage. It launches Codex
 in the current working directory, detects cooldown text from PTY output, records minimal global shell
