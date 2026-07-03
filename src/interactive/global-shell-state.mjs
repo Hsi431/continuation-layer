@@ -43,8 +43,10 @@ export function makeInitialGlobalShellState({
     usage_window_started_at: null,
     cooldown_detected_at: null,
     reset_time_provenance: null,
+    interactive_shell_status: null,
     interactive_resume_target: null,
     interactive_resume_target_provenance: null,
+    last_tty_event: null,
     updated_at: timestamp,
   };
 }
@@ -98,6 +100,8 @@ export function writeGlobalShellState({
       reset_time_provenance: nextState.reset_time_provenance,
       interactive_resume_target: nextState.interactive_resume_target,
       interactive_resume_target_provenance: nextState.interactive_resume_target_provenance,
+      interactive_shell_status: nextState.interactive_shell_status,
+      last_tty_event: nextState.last_tty_event,
       ...(metadata && typeof metadata === 'object' ? metadata : {}),
     });
   }
@@ -143,8 +147,10 @@ export function recordGlobalInteractiveCooldown({
       next_resume_at: nextResumeAt,
       cooldown_detected_at: cooldownDetectedAt,
       reset_time_provenance: resumePlan.resetTimeProvenance,
+      interactive_shell_status: 'cooling_down',
       interactive_resume_target: null,
       interactive_resume_target_provenance: null,
+      last_tty_event: 'interactive_cooldown_detected',
     },
     event: 'interactive_cooldown_detected',
     reason,

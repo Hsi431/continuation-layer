@@ -96,7 +96,7 @@ export async function runPtyCommand(commandSpec, options = {}) {
 
       dataSubscription = child.onData((data) => {
         stdout.write(String(data));
-        onData?.(String(data));
+        onData?.(String(data), { child, finish });
       });
       exitSubscription = child.onExit(finish);
 

@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { existsSync } from 'node:fs';
+
 import {
   completeTask,
   initAgent,
@@ -8,6 +10,7 @@ import {
   statusAgent,
   writeMechanicalSnapshot,
 } from '../src/core/agent-state.mjs';
+import { paths } from '../src/core/files.mjs';
 import { resolveRepoRoot } from '../src/core/git.mjs';
 import { runInteractiveShell } from '../src/interactive/shell-session.mjs';
 import { getProviderAdapter } from '../src/providers/adapter.mjs';
@@ -27,6 +30,8 @@ function parseArgs(argv) {
     allowEarly: false,
     yes: false,
     requireRepo: false,
+    forceGlobal: false,
+    unattended: false,
     promptParts: [],
   };
 
@@ -42,6 +47,10 @@ function parseArgs(argv) {
       options.yes = true;
     } else if (arg === '--require-repo') {
       options.requireRepo = true;
+    } else if (arg === '--global') {
+      options.forceGlobal = true;
+    } else if (arg === '--unattended' || arg === '--overnight') {
+      options.unattended = true;
     } else if (arg === '--task-id') {
       options.taskId = args.shift();
     } else if (arg === '--provider') {
@@ -51,6 +60,10 @@ function parseArgs(argv) {
     } else {
       options.promptParts.push(arg);
     }
+  }
+
+  if (options.forceGlobal && options.requireRepo) {
+    throw new Error('Cannot combine --global and --require-repo');
   }
 
   options.prompt = options.promptParts.join(' ');
@@ -85,6 +98,9 @@ Options:
   --json               Machine-readable status output
   --dry-run            Print provider command without executing start/watch/codex/shell/resume/continue
   --require-repo       For codex/shell, fail outside git instead of using Global Shell Mode
+  --global             For codex/shell, force Global Shell Mode even inside git repositories
+  --unattended         For codex/shell, auto-pause, wait, and resume on cooldown
+  --overnight          Alias for --unattended
   --allow-early        Resume before next_resume_at
   --yes                Confirm child continuation startup
 
@@ -219,7 +235,20 @@ function printArchiveResult(label, result) {
   console.log(`archived snapshot: ${result.archive.snapshot}`);
 }
 
-function dryRunCommand(kind, prompt, { requireRepo = false, cwd = process.cwd() } = {}) {
+function dryRunCommand(
+  kind,
+  prompt,
+  { requireRepo = false, forceGlobal = false, cwd = process.cwd() } = {},
+) {
+  if (forceGlobal && requireRepo) {
+    throw new Error('Cannot combine --global and --require-repo');
+  }
+
+  if (isInteractiveCodexCommand(kind) && forceGlobal) {
+    const adapter = getProviderAdapter('codex');
+    return adapter.startSessionCommand({ repoRoot: cwd, prompt, nonInteractive: false });
+  }
+
   let repoRoot = null;
   try {
     repoRoot = resolveRepoRoot(cwd);
@@ -234,6 +263,11 @@ function dryRunCommand(kind, prompt, { requireRepo = false, cwd = process.cwd() 
     }
 
     throw error;
+  }
+
+  if (isInteractiveCodexCommand(kind) && !existsSync(paths(repoRoot).agentDir)) {
+    const adapter = getProviderAdapter('codex');
+    return adapter.startSessionCommand({ repoRoot: cwd, prompt, nonInteractive: false });
   }
 
   const { config, state } = loadAgentState(repoRoot);
@@ -372,7 +406,10 @@ async function main() {
   if (isInteractiveCodexCommand(command)) {
     if (options.dryRun) {
       printCommandLine(
-        dryRunCommand(command, options.prompt, { requireRepo: options.requireRepo }),
+        dryRunCommand(command, options.prompt, {
+          requireRepo: options.requireRepo,
+          forceGlobal: options.forceGlobal,
+        }),
       );
       return;
     }
@@ -380,6 +417,8 @@ async function main() {
     const result = await runInteractiveShell({
       prompt: options.prompt,
       requireRepo: options.requireRepo,
+      forceGlobal: options.forceGlobal,
+      unattended: options.unattended,
     });
     process.exitCode = result.exitCode ?? 0;
     return;

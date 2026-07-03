@@ -257,3 +257,37 @@ Related files:
 Consequence: Project Shell Mode and Global Shell Mode set `usage_window_started_at` on interactive
 start. Interactive cooldown recording passes that anchor to the shared resume planner. Provider
 reset times still take precedence, and `cooldown_detected_at` is only the last fallback.
+
+## Decision: Unattended interactive mode is explicit opt-in
+
+Reason: Default interactive Codex wrapping should remain safe for users at the keyboard, while
+overnight/dropped-session usage needs a mode that does not block on Enter after cooldown.
+
+Date: 2026-07-03
+
+Related files:
+
+- `bin/continuity.mjs`
+- `src/interactive/shell-session.mjs`
+- `tests/interactive-runner.test.mjs`
+
+Consequence: `continuity codex` keeps the Enter confirmation path. `continuity codex --unattended`
+and `continuity codex --overnight` auto-pause Codex on cooldown, force-terminate only the Codex
+child if needed, preserve `cooling_down`, and continue to wait/resume.
+
+## Decision: Missing .agent falls back to global; broken .agent fails
+
+Reason: `continuity codex` should replace everyday `codex` usage in ordinary git repositories, but
+must not hide broken project continuity state when `.agent/` already exists.
+
+Date: 2026-07-03
+
+Related files:
+
+- `src/interactive/shell-session.mjs`
+- `bin/continuity.mjs`
+- `tests/interactive-runner.test.mjs`
+
+Consequence: A git repo with no `.agent/` enters Global Shell Mode and does not create `.agent/`.
+A git repo with a partial, corrupt, or inconsistent `.agent/` fails loudly instead of silently using
+global state. `--global` explicitly forces Global Shell Mode and conflicts with `--require-repo`.

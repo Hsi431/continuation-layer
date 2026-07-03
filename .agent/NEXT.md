@@ -2,12 +2,21 @@
 
 ## Next Action
 
-Commit the interactive/global shell usage-window anchor fix if requested.
+Commit the unattended interactive Codex mode and corrected Project/Global Shell Mode selection if
+requested.
 
 ## Target Files
 
+- `README.md`
+- `bin/continuity.mjs`
+- `docs/INTERACTIVE_WRAPPER.md`
+- `docs/SMOKE_INTERACTIVE.md`
+- `src/core/constants.mjs`
+- `src/core/validation.mjs`
 - `src/interactive/global-shell-state.mjs`
+- `src/interactive/pty-runner.mjs`
 - `src/interactive/shell-session.mjs`
+- `tests/docs-cli.test.mjs`
 - `tests/interactive-runner.test.mjs`
 - `.agent/HANDOFF.md`
 - `.agent/NEXT.md`
@@ -15,8 +24,8 @@ Commit the interactive/global shell usage-window anchor fix if requested.
 
 ## Constraints
 
-- Do not change PTY runner, stream detector, mode selection, CLI aliasing, package version, or the
-  v0.1 cooldown watchdog path.
+- Do not change cooldown detection patterns, usage-window fallback priority, reset provenance
+  priority, package version, or the v0.1 cooldown watchdog path.
 - Provider reset times must keep precedence over the local usage-window anchor.
 - Do not tag or publish in this pass.
 

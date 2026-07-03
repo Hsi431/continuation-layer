@@ -121,18 +121,31 @@ cooldown protection.
 observes terminal output for cooldown text, waits through reset windows after Codex exits or
 user-confirmed pause, and resumes with interactive `codex resume`.
 
+By default, cooldown safety is interactive: after cooldown detection, the wrapper records state,
+blocks normal input, and asks for Enter before pausing Codex. For unattended runs, use:
+
+```sh
+continuity codex --unattended
+continuity codex --overnight
+```
+
+Both flags make the wrapper auto-pause Codex on cooldown, wait until `next_resume_at`, and resume.
+
 It still cannot attach to an already-running direct `codex` process.
 
 ## Shell modes
 
 `continuity codex` auto-detects where it is running:
 
-| Location                   | Mode               | State                           |
-| -------------------------- | ------------------ | ------------------------------- |
-| Inside a git repository    | Project Shell Mode | repo-local `.agent/` continuity |
-| Outside any git repository | Global Shell Mode  | user-level global shell state   |
+| Location / flag                          | Mode               | State                           |
+| ---------------------------------------- | ------------------ | ------------------------------- |
+| Git repository with valid `.agent/`      | Project Shell Mode | repo-local `.agent/` continuity |
+| Git repository without `.agent/`         | Global Shell Mode  | user-level global shell state   |
+| Outside any git repository               | Global Shell Mode  | user-level global shell state   |
+| `--global`, even inside a git repository | Global Shell Mode  | user-level global shell state   |
 
-Project Shell Mode provides the full project continuity path: repo root detection, `.agent` state,
+Project Shell Mode works in any initialized git repository. Run `continuity init --task-id <task-id>`
+once per project. It provides the full project continuity path: repo root detection, `.agent` state,
 mechanical snapshots, git status/diff recovery, interactive event recording, cooldown wait, and
 interactive resume.
 
@@ -144,7 +157,17 @@ was detected or `codex resume --last` as a best-effort fallback.
 Global Shell Mode does **not** provide `.agent` handoff, git recovery, semantic continuation,
 overnight continuation, project snapshots, or child continuation.
 
-To require full project continuity and reject global fallback:
+If a git repository has no `.agent/`, `continuity codex` enters Global Shell Mode by default and
+prints init guidance. If `.agent/` exists but is partial, invalid, or inconsistent, the command fails
+loudly instead of falling back.
+
+To force Global Shell Mode inside a repository:
+
+```sh
+continuity codex --global
+```
+
+To reject non-git directories:
 
 ```sh
 continuity codex --require-repo
@@ -379,12 +402,15 @@ continuity watch "finish this task"
 ```sh
 continuity codex
 continuity codex "explain this repo"
+continuity codex --unattended
+continuity codex --global
 continuity codex --require-repo
 ```
 
 This is Linux-first experimental interactive wrapper support. Use `continuity watch` for
-non-interactive long-running tasks. Outside git repositories, `continuity codex` enters Global Shell
-Mode and stores only minimal shell cooldown state outside the project.
+non-interactive long-running tasks. Initialized git repositories use Project Shell Mode. Non-git
+directories and uninitialized git repositories use Global Shell Mode and store only minimal shell
+cooldown state outside the project.
 
 Advanced alias:
 

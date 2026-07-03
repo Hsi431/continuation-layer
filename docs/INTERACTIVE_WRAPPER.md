@@ -3,9 +3,9 @@
 This document records Ticket 0 research plus Ticket 1 through Ticket 7 groundwork for the planned
 v0.2 interactive wrapper.
 
-Status: `continuity codex --dry-run`, the initial PTY runner foundation, and PTY output cooldown
-detection/state recording/graceful pause/wait/resume are implemented. Existing cooldown adoption is
-implemented for interactive cooldown state.
+Status: `continuity codex --dry-run`, the PTY runner foundation, PTY output cooldown
+detection/state recording, safe interactive pause, unattended pause, wait/resume, and existing
+cooldown adoption are implemented.
 
 ## Scope
 
@@ -16,6 +16,22 @@ continuity codex
 ```
 
 `continuity shell` remains an alias for `continuity codex`.
+
+Default mode is interactive safety mode. When cooldown is detected, the wrapper records
+`cooling_down` state, blocks normal input, and asks the user to press Enter before pausing Codex.
+
+Unattended mode is explicit:
+
+```sh
+continuity codex --unattended
+continuity codex --overnight
+```
+
+In unattended mode, cooldown detection records `cooling_down`, sends `SIGINT` to Codex immediately,
+waits for the pause grace period, then sends `SIGTERM` and `SIGKILL` if the child does not exit. The
+top-level state remains `cooling_down`; forced child termination is recorded with
+`interactive_shell_status = cooldown_child_terminated` and
+`last_tty_event = unattended_pause_forced`. The wrapper then proceeds to wait/resume.
 
 The wrapper should launch Codex itself, connect it to a real pseudo-terminal, observe terminal
 output for cooldown text, write the right shell state for the current mode, wait through reset
@@ -73,31 +89,46 @@ Ticket 7 lets a restarted `continuity codex` or `continuity shell` adopt existin
 `next_resume_at`, then launches interactive resume. If `next_resume_at` has already passed, it
 resumes immediately.
 
+The unattended path extends Ticket 5 behavior only when `--unattended` or `--overnight` is passed.
+Default mode still asks for Enter on cooldown.
+
 ## Shell Modes
 
 `continuity codex` has two modes. `continuity shell` is an alias.
 
-| Capability                  | Project Shell Mode          | Global Shell Mode                       |
-| --------------------------- | --------------------------- | --------------------------------------- |
-| Trigger                     | current directory is in git | current directory is not in git         |
-| Codex launch cwd            | repository root             | current working directory               |
-| State path                  | repo-local `.agent/`        | user-level global shell state           |
-| Cooldown detection          | yes                         | yes                                     |
-| Wait until `next_resume_at` | yes                         | yes                                     |
-| Explicit session-id resume  | yes                         | yes, only if detected from Codex output |
-| Fallback resume             | `codex resume --last`       | `codex resume --last`, best effort      |
-| Git status/diff recovery    | yes                         | no                                      |
-| Mechanical project snapshot | yes                         | no                                      |
-| Semantic handoff            | yes                         | no                                      |
-| Context/child continuation  | project continuity only     | no                                      |
-| Overnight automation        | project continuity only     | no                                      |
+| Capability                  | Project Shell Mode            | Global Shell Mode                          |
+| --------------------------- | ----------------------------- | ------------------------------------------ |
+| Trigger                     | git repo with valid `.agent/` | non-git, git without `.agent/`, `--global` |
+| Codex launch cwd            | repository root               | current working directory                  |
+| State path                  | repo-local `.agent/`          | user-level global shell state              |
+| Cooldown detection          | yes                           | yes                                        |
+| Wait until `next_resume_at` | yes                           | yes                                        |
+| Explicit session-id resume  | yes                           | yes, only if detected from Codex output    |
+| Fallback resume             | `codex resume --last`         | `codex resume --last`, best effort         |
+| Git status/diff recovery    | yes                           | no                                         |
+| Mechanical project snapshot | yes                           | no                                         |
+| Semantic handoff            | yes                           | no                                         |
+| Context/child continuation  | project continuity only       | no                                         |
+| Overnight automation        | project continuity only       | no                                         |
 
-Project Shell Mode is full project continuity. It uses the repository root, `.agent/state.json`,
+Project Shell Mode is full project continuity for any initialized git repository. It is not specific
+to the Continuation Layer repository. Run this once per project:
+
+```sh
+continuity init --task-id <task-id>
+```
+
+Then `continuity codex` uses that repository root, `.agent/state.json`,
 `.agent/AUTO_SNAPSHOT.md`, `sessions.jsonl`, git status/diff recovery, and the existing interactive
 cooldown adoption path.
 
-Global Shell Mode is a cooldown wrapper for everyday `codex`-style terminal usage outside git
-repositories. It does not create `.agent/`, does not run git recovery, and does not pretend that
+When the current directory is inside a git repository but `.agent/` does not exist, `continuity
+codex` enters Global Shell Mode by default and prints init guidance. It does not create `.agent/`.
+When `.agent/` exists but required files are missing, invalid, or inconsistent, the command fails
+loudly and does not fall back to Global Shell Mode.
+
+Global Shell Mode is a cooldown wrapper for everyday `codex`-style terminal usage outside project
+continuity. It does not create `.agent/`, does not run git recovery, and does not pretend that
 handoff or continuation state exists. It stores only minimal global shell state and resumes with:
 
 ```text
@@ -137,6 +168,14 @@ Use this flag when global fallback is not wanted:
 ```sh
 continuity codex --require-repo
 ```
+
+Use this flag to force Global Shell Mode inside a git repository:
+
+```sh
+continuity codex --global
+```
+
+`--global` and `--require-repo` conflict and are rejected when passed together.
 
 ## Codex CLI Observations
 

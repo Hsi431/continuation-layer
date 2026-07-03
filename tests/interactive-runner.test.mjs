@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -12,9 +12,14 @@ import { runPtyCommand, TTY_REQUIRED_MESSAGE } from '../src/interactive/pty-runn
 import { codexAdapter } from '../src/providers/codex.mjs';
 
 function makeRepo() {
-  const dir = mkdtempSync(join(tmpdir(), 'continuity-interactive-'));
-  execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
+  const dir = makeGitRepo();
   initAgent({ cwd: dir, taskId: 'task-interactive' });
+  return dir;
+}
+
+function makeGitRepo(prefix = 'continuity-interactive-') {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
   return dir;
 }
 
@@ -280,6 +285,113 @@ test('interactive shell outside git enters global mode and spawns Codex in cwd',
   assert.match(stderr.text, /Project handoff, git recovery, and \.agent state are disabled/);
 });
 
+test('git repo without .agent enters Global Shell Mode and does not create .agent', async () => {
+  const cwd = makeGitRepo('continuity-uninitialized-repo-');
+  const stateDir = makeDir('continuity-global-state-');
+  const stderr = new FakeOutput();
+  let commandSpec = null;
+
+  const result = await runInteractiveShell({
+    cwd,
+    globalStateDir: stateDir,
+    stderr,
+    ptyRunner: async (spec) => {
+      commandSpec = spec;
+      return { exitCode: 0, signal: null };
+    },
+  });
+  const state = readJson(join(stateDir, 'global-shell-state.json'));
+
+  assert.equal(result.mode, 'global_shell');
+  assert.deepEqual(commandSpec, {
+    command: 'codex',
+    args: ['-C', cwd],
+    cwd,
+  });
+  assert.equal(state.cwd, cwd);
+  assert.equal(existsSync(join(cwd, '.agent')), false);
+  assert.match(stderr.text, /This git repository is not initialized for project continuity/);
+  assert.match(stderr.text, /Starting Global Shell Mode/);
+  assert.match(stderr.text, /continuity init --task-id <task-id>/);
+});
+
+test('git repo with partial .agent fails loudly and does not fallback to global', async () => {
+  const cwd = makeGitRepo('continuity-partial-agent-');
+  const stateDir = makeDir('continuity-global-state-');
+  mkdirSync(join(cwd, '.agent'));
+  let started = false;
+
+  await assert.rejects(
+    runInteractiveShell({
+      cwd,
+      globalStateDir: stateDir,
+      ptyRunner: async () => {
+        started = true;
+        return { exitCode: 0, signal: null };
+      },
+    }),
+    /Incomplete \.agent state/,
+  );
+
+  assert.equal(started, false);
+  assert.equal(existsSync(join(stateDir, 'global-shell-state.json')), false);
+});
+
+test('--global forces Global Shell Mode inside an initialized git repo', async () => {
+  const repo = makeRepo();
+  const stateDir = makeDir('continuity-global-state-');
+  const stderr = new FakeOutput();
+  let commandSpec = null;
+
+  const result = await runInteractiveShell({
+    cwd: repo,
+    forceGlobal: true,
+    globalStateDir: stateDir,
+    stderr,
+    ptyRunner: async (spec) => {
+      commandSpec = spec;
+      return { exitCode: 0, signal: null };
+    },
+  });
+  const globalState = readJson(join(stateDir, 'global-shell-state.json'));
+  const projectState = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.equal(result.mode, 'global_shell');
+  assert.deepEqual(commandSpec, {
+    command: 'codex',
+    args: ['-C', repo],
+    cwd: repo,
+  });
+  assert.equal(globalState.cwd, repo);
+  assert.equal(projectState.last_event, 'task_created');
+  assert.match(stderr.text, /Global Shell Mode forced by --global/);
+});
+
+test('initialized git repo uses repo-local Project Shell Mode', async () => {
+  const repo = makeRepo();
+  const stateDir = makeDir('continuity-global-state-');
+  let commandSpec = null;
+
+  const result = await runInteractiveShell({
+    cwd: repo,
+    globalStateDir: stateDir,
+    ptyRunner: async (spec) => {
+      commandSpec = spec;
+      return { exitCode: 0, signal: null };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.equal(result.mode, 'project_shell');
+  assert.deepEqual(commandSpec, {
+    command: 'codex',
+    args: ['-C', repo],
+    cwd: repo,
+  });
+  assert.equal(state.interactive_shell_status, 'exited');
+  assert.equal(existsSync(join(stateDir, 'global-shell-state.json')), false);
+});
+
 test('global shell state records usage_window_started_at on start', async () => {
   const cwd = makeDir();
   const stateDir = makeDir('continuity-global-state-');
@@ -517,6 +629,24 @@ test('interactive shell require-repo rejects non-git directories', async () => {
   assert.equal(started, false);
 });
 
+test('interactive shell rejects conflicting force-global and require-repo flags', async () => {
+  let started = false;
+
+  await assert.rejects(
+    runInteractiveShell({
+      cwd: makeRepo(),
+      forceGlobal: true,
+      requireRepo: true,
+      ptyRunner: async () => {
+        started = true;
+        return { exitCode: 0, signal: null };
+      },
+    }),
+    /Cannot combine --global and --require-repo/,
+  );
+  assert.equal(started, false);
+});
+
 test('project interactive cooldown uses usage window anchor fallback', async () => {
   const repo = makeRepo();
   const adapter = makeNoResetAdapter();
@@ -696,6 +826,157 @@ test('interactive shell blocks normal input after cooldown and pauses on Enter',
   assert.match(stderr.text, /Press Enter to pause and wait/);
   assert.match(stderr.text, /Pausing Codex until the cooldown reset window/);
   assert.match(stderr.text, /Resuming Codex session: sess-tty/);
+});
+
+test('default interactive mode asks for Enter and does not auto-pause', async () => {
+  const repo = makeRepo();
+  const stderr = new FakeOutput();
+  let nowMs = Date.parse('2026-06-29T00:00:00.000Z');
+  const commands = [];
+  const child = {
+    kills: [],
+    kill(signal) {
+      this.kills.push(signal);
+    },
+  };
+
+  await runInteractiveShell({
+    cwd: repo,
+    stderr,
+    clock: () => new Date(nowMs),
+    sleep: async (milliseconds) => {
+      nowMs += milliseconds;
+    },
+    ptyRunner: async (spec, options) => {
+      commands.push(spec);
+      if (commands.length === 1) {
+        options.onData('usage limit reached; try again in 10 minutes', { child });
+        assert.deepEqual(child.kills, []);
+        return { exitCode: null, signal: null };
+      }
+      return { exitCode: 0, signal: null };
+    },
+  });
+
+  assert.match(stderr.text, /Press Enter to pause and wait/);
+  assert.doesNotMatch(stderr.text, /Unattended mode is enabled/);
+});
+
+test('unattended mode auto-pauses on cooldown and resumes after child exit', async () => {
+  const repo = makeRepo();
+  const stderr = new FakeOutput();
+  let nowMs = Date.parse('2026-06-29T00:00:00.000Z');
+  const commands = [];
+  const sleeps = [];
+  const child = {
+    kills: [],
+    kill(signal) {
+      this.kills.push(signal);
+    },
+  };
+
+  const result = await runInteractiveShell({
+    cwd: repo,
+    stderr,
+    unattended: true,
+    clock: () => new Date(nowMs),
+    sleep: async (milliseconds) => {
+      sleeps.push(milliseconds);
+      nowMs += milliseconds;
+    },
+    pauseGraceSleep: () => new Promise(() => {}),
+    ptyRunner: async (spec, options) => {
+      commands.push(spec);
+      if (commands.length === 1) {
+        options.onData(
+          'session_id: sess-unattended\nusage limit reached; try again in 10 minutes',
+          {
+            child,
+          },
+        );
+        assert.deepEqual(child.kills, ['SIGINT']);
+      }
+      return { exitCode: 0, signal: null };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.equal(result.pauseConfirmed, true);
+  assert.equal(result.runs[0].unattendedPauseStarted, true);
+  assert.equal(result.interactiveResumes, 1);
+  assert.deepEqual(sleeps, [900000]);
+  assert.deepEqual(commands[1].args, ['resume', '-C', repo, 'sess-unattended']);
+  assert.equal(state.status, 'checkpointed');
+  assert.match(stderr.text, /Unattended mode is enabled/);
+  assert.match(stderr.text, /Pausing Codex automatically/);
+  assert.doesNotMatch(stderr.text, /Press Enter to pause and wait/);
+});
+
+test('unattended forced termination keeps cooling_down state while proceeding to resume', async () => {
+  const repo = makeRepo();
+  const stderr = new FakeOutput();
+  let nowMs = Date.parse('2026-06-29T00:00:00.000Z');
+  const commands = [];
+  const waitSleeps = [];
+  const graceSleeps = [];
+  const statusesDuringWait = [];
+  const child = {
+    kills: [],
+    kill(signal) {
+      this.kills.push(signal);
+    },
+  };
+
+  const result = await runInteractiveShell({
+    cwd: repo,
+    stderr,
+    unattended: true,
+    pauseGraceSeconds: 3,
+    forceTerminationGraceSeconds: 1,
+    clock: () => new Date(nowMs),
+    sleep: async (milliseconds) => {
+      waitSleeps.push(milliseconds);
+      const state = readJson(join(repo, '.agent', 'state.json'));
+      statusesDuringWait.push({
+        status: state.status,
+        interactiveShellStatus: state.interactive_shell_status,
+        lastTtyEvent: state.last_tty_event,
+      });
+      nowMs += milliseconds;
+    },
+    pauseGraceSleep: async (milliseconds) => {
+      graceSleeps.push(milliseconds);
+    },
+    ptyRunner: async (spec, options) => {
+      commands.push(spec);
+      if (commands.length === 1) {
+        return new Promise((resolve) => {
+          options.onData('session_id: sess-forced\nusage limit reached; try again in 10 minutes', {
+            child,
+            finish: resolve,
+          });
+        });
+      }
+      return { exitCode: 0, signal: null };
+    },
+  });
+  const finalState = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.equal(result.runs[0].unattendedForcedTermination, true);
+  assert.deepEqual(child.kills, ['SIGINT', 'SIGTERM', 'SIGKILL']);
+  assert.deepEqual(graceSleeps, [3000, 1000]);
+  assert.deepEqual(waitSleeps, [900000]);
+  assert.deepEqual(statusesDuringWait, [
+    {
+      status: 'cooling_down',
+      interactiveShellStatus: 'cooldown_child_terminated',
+      lastTtyEvent: 'unattended_pause_forced',
+    },
+  ]);
+  assert.deepEqual(commands[1].args, ['resume', '-C', repo, 'sess-forced']);
+  assert.equal(result.interactiveResumes, 1);
+  assert.equal(finalState.status, 'checkpointed');
+  assert.match(stderr.text, /Forcing Codex child termination/);
 });
 
 test('interactive shell aborts safely when pause SIGINT does not exit child before grace timeout', async () => {

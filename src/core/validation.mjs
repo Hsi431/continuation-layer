@@ -16,6 +16,7 @@ const INTERACTIVE_SHELL_STATUS_VALUES = Object.freeze([
   'exited',
   'aborted',
   'failed',
+  'cooldown_child_terminated',
 ]);
 
 const INTERACTIVE_RESUME_TARGET_PROVENANCE_VALUES = Object.freeze([

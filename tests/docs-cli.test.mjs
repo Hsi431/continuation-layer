@@ -10,6 +10,9 @@ test('CLI help documents watch mode and direct Codex limitation', () => {
     /codex \[prompt\]\s+Start Codex interactive TUI under Continuation Layer wrapper[\s\S]*shell \[prompt\]\s+Alias for codex/,
   );
   assert.match(helpSource, /--require-repo\s+For codex\/shell, fail outside git/);
+  assert.match(helpSource, /--global\s+For codex\/shell, force Global Shell Mode/);
+  assert.match(helpSource, /--unattended\s+For codex\/shell, auto-pause/);
+  assert.match(helpSource, /--overnight\s+Alias for --unattended/);
   assert.match(
     helpSource,
     /watch \[prompt\]\s+Start provider CLI under long-lived cooldown watchdog/,
@@ -61,10 +64,14 @@ test('codex and shell dry-run use the same interactive provider command path', (
     helpSource,
     /adapter\.startSessionCommand\(\{ repoRoot, prompt, nonInteractive: false \}\)/,
   );
-  assert.match(helpSource, /dryRunCommand\(command, options\.prompt, \{ requireRepo/);
+  assert.match(helpSource, /dryRunCommand\(command, options\.prompt,\s+\{/);
   assert.match(helpSource, /runInteractiveShell\(\{\s+prompt: options\.prompt,/);
   assert.match(helpSource, /requireRepo: options\.requireRepo/);
+  assert.match(helpSource, /forceGlobal: options\.forceGlobal/);
+  assert.match(helpSource, /unattended: options\.unattended/);
   assert.match(helpSource, /arg === '--require-repo'/);
+  assert.match(helpSource, /arg === '--global'/);
+  assert.match(helpSource, /arg === '--unattended' \|\| arg === '--overnight'/);
 });
 
 test('codex outside git routes to the global interactive shell path', () => {
@@ -80,4 +87,11 @@ test('codex require-repo outside git keeps the repo-required failure path', () =
 
   assert.match(helpSource, /if \(isInteractiveCodexCommand\(kind\) && !requireRepo\)/);
   assert.match(helpSource, /throw error/);
+});
+
+test('global and require-repo flags conflict clearly', () => {
+  const helpSource = readFileSync(new URL('../bin/continuity.mjs', import.meta.url), 'utf8');
+
+  assert.match(helpSource, /options\.forceGlobal && options\.requireRepo/);
+  assert.match(helpSource, /Cannot combine --global and --require-repo/);
 });

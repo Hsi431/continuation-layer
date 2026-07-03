@@ -26,11 +26,27 @@ Expected:
 - Codex TUI opens in the current directory;
 - no `.agent/` directory is created.
 
+Use a disposable git repository without `.agent/` when testing the daily Codex replacement path:
+
+```sh
+mkdir -p /tmp/continuity-uninitialized-git-smoke
+cd /tmp/continuity-uninitialized-git-smoke
+git init
+continuity codex
+```
+
+Expected:
+
+- init guidance appears;
+- Global Shell Mode starts;
+- no `.agent/` directory is created.
+
 ## 1. Dry Run
 
 ```sh
 continuity codex --dry-run
 continuity codex --dry-run "explain this repo"
+continuity codex --global --dry-run
 continuity shell --dry-run
 ```
 
@@ -53,6 +69,10 @@ Expected:
 - typing works normally before cooldown detection;
 - repo-local `.agent` state records interactive shell events;
 - exiting Codex restores terminal raw mode.
+
+Project Shell Mode works in any initialized git repository, not only this repository. Run
+`continuity init --task-id <task-id>` once per project before expecting `.agent/` project
+continuity.
 
 If the terminal is left in a bad state:
 
@@ -98,10 +118,27 @@ Expected:
 - if Codex exits after cooldown, wrapper treats it as already paused and waits until `next_resume_at`;
 - after Enter confirmation, wrapper waits until `next_resume_at` when Codex exits cleanly;
 - if Codex does not exit after Enter, wrapper times out safely and keeps `cooling_down` state;
+- in `--unattended` mode, wrapper auto-pauses Codex without Enter and proceeds to wait/resume;
+- if unattended graceful pause fails, wrapper terminates the Codex child and still proceeds to
+  wait/resume;
 - wrapper launches interactive `codex resume <session_id>` when a session id exists;
 - wrapper falls back to `codex resume --last` when no explicit session id exists.
 
-## 6. Restart During Cooldown
+## 6. Unattended Mode
+
+```sh
+continuity codex --unattended
+continuity codex --overnight
+```
+
+Expected:
+
+- cooldown detection does not wait for Enter;
+- wrapper prints that unattended mode is enabled;
+- Codex child is paused automatically;
+- wrapper waits until `next_resume_at` and resumes.
+
+## 7. Restart During Cooldown
 
 After an interactive cooldown has been recorded, stop the wrapper before resume, then run:
 
@@ -116,7 +153,7 @@ Expected:
 - if `next_resume_at` is in the future, wrapper waits;
 - if `next_resume_at` is in the past, wrapper resumes immediately.
 
-## 7. Global Shell Mode
+## 8. Global Shell Mode
 
 ```sh
 mkdir -p /tmp/continuity-shell-global-test
@@ -130,6 +167,17 @@ Expected:
 - Codex TUI opens;
 - cooldown detection, waiting, and best-effort `codex resume --last` remain enabled;
 - `.agent/` is not created.
+
+Force Global Shell Mode inside a git repository:
+
+```sh
+continuity codex --global
+```
+
+Expected:
+
+- Project `.agent/` state is not used;
+- user-level global shell state is used.
 
 ## Troubleshooting
 

@@ -18,30 +18,49 @@ None.
 
 ## Status
 
-Interactive Project Shell Mode and Global Shell Mode now record `usage_window_started_at` and use it
-as the fallback cooldown anchor when providers do not return an explicit reset time.
+Unattended interactive Codex mode and corrected Project/Global Shell Mode selection are implemented
+and validated.
 
 ## Goal
 
-Ensure `continuity codex` computes fallback resume times from `usage_window_started_at + 5h +
-buffer`, not `cooldown_detected_at + 5h + buffer`, for both project and global shell modes.
+Add `continuity codex --unattended` / `--overnight`, explicit `--global`, and product-safe mode
+selection for initialized repos, uninitialized repos, corrupt `.agent/`, and non-git directories.
 
 ## What Changed
 
-- Project interactive shell start now sets `usage_window_started_at` alongside
-  `interactive_shell_started_at`, preserving an existing anchor when present.
-- Global shell initial state now includes `usage_window_started_at`.
-- New global shell starts write `usage_window_started_at = startedAt`; adopted existing cooldown
-  state keeps its existing anchor.
-- `recordGlobalInteractiveCooldown()` now passes `existing.usage_window_started_at` into
-  `calculateNextResumePlan()`.
-- Added focused interactive tests for project/global start anchors, project/global fallback resume
-  calculation, and provider reset precedence.
+- Added CLI flags:
+  - `--unattended`
+  - `--overnight` alias for `--unattended`
+  - `--global` to force Global Shell Mode
+- Rejected `--global --require-repo` as a conflicting flag combination.
+- Project Shell Mode now applies to any git repo with a valid `.agent/`.
+- Git repos without `.agent/` fall back to Global Shell Mode by default, print init guidance, and do
+  not create `.agent/`.
+- Existing partial/corrupt `.agent/` still fails loudly and does not fall back to global state.
+- Unattended mode auto-pauses Codex on cooldown with `SIGINT`, then uses `SIGTERM`/`SIGKILL` after
+  grace if the child ignores the pause.
+- Forced unattended child termination preserves top-level `status = cooling_down`, records
+  `interactive_shell_status = cooldown_child_terminated` and
+  `last_tty_event = unattended_pause_forced`, then proceeds to wait/resume.
+- Global shell state now carries interactive shell status/TTY event markers for forced unattended
+  termination.
+- PTY data callbacks now receive child/finish context so the shell session can terminate only the
+  Codex child and still restore terminal state through the PTY runner cleanup path.
+- README, interactive wrapper docs, and smoke docs now describe safety mode, unattended mode,
+  arbitrary initialized repos, uninitialized-repo Global fallback, and `--global`.
 
 ## Files Touched
 
+- `README.md`
+- `bin/continuity.mjs`
+- `docs/INTERACTIVE_WRAPPER.md`
+- `docs/SMOKE_INTERACTIVE.md`
+- `src/core/constants.mjs`
+- `src/core/validation.mjs`
 - `src/interactive/global-shell-state.mjs`
+- `src/interactive/pty-runner.mjs`
 - `src/interactive/shell-session.mjs`
+- `tests/docs-cli.test.mjs`
 - `tests/interactive-runner.test.mjs`
 - `.agent/HANDOFF.md`
 - `.agent/NEXT.md`
@@ -66,14 +85,17 @@ No manual TTY smoke was run for this targeted usage-window anchor fix.
 
 ## Important Decisions
 
-- Provider reset times still win over local usage-window anchors.
-- The usage-window anchor is created at interactive shell start, not at cooldown detection.
-- If no provider reset and no usage-window anchor exists, `cooldown_detected_at` remains the final
-  fallback.
+- `continuity codex` remains safe interactive mode by default and still asks for Enter on cooldown.
+- `--unattended` and `--overnight` are explicit opt-ins for auto-pause/wait/resume.
+- `--global` forces Global Shell Mode and conflicts with `--require-repo`.
+- Missing `.agent/` means Global Shell Mode; existing broken `.agent/` means fail loudly.
+- Forced unattended termination only targets the Codex child, not the wrapper, and the wrapper
+  proceeds to wait/resume.
 
 ## Known Risks
 
-- Real interactive Codex TUI smoke was not rerun for this targeted state/calculation patch.
+- Real interactive Codex TUI smoke was not rerun for this runtime patch; behavior is covered with
+  fake PTY tests.
 
 ## Next Exact Steps
 
@@ -83,4 +105,4 @@ No manual TTY smoke was run for this targeted usage-window anchor fix.
 
 ## Last Updated
 
-2026-07-03T00:22:47Z
+2026-07-03T15:32:09Z

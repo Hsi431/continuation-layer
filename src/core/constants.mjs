@@ -41,6 +41,7 @@ export const EVENT_VALUES = Object.freeze([
   'interactive_shell_resuming',
   'interactive_shell_aborted',
   'interactive_shell_exited',
+  'unattended_pause_forced',
   'overnight_enabled',
   'overnight_disabled',
   'task_completed',

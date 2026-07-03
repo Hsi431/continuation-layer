@@ -1,5 +1,8 @@
+import { existsSync } from 'node:fs';
+
 import { loadAgentState, transitionState } from '../core/agent-state.mjs';
 import { DEFAULT_CONFIG } from '../core/constants.mjs';
+import { paths } from '../core/files.mjs';
 import { tryResolveRepoRoot } from '../core/git.mjs';
 import { getProviderAdapter } from '../providers/adapter.mjs';
 import { recordInteractiveCooldown } from './cooldown-recorder.mjs';
@@ -14,6 +17,7 @@ import { runPtyCommand } from './pty-runner.mjs';
 import { createCooldownStreamDetector } from './stream-detector.mjs';
 
 export const DEFAULT_INTERACTIVE_PAUSE_GRACE_SECONDS = 10;
+export const DEFAULT_UNATTENDED_FORCE_TERMINATION_GRACE_SECONDS = 2;
 
 export async function runInteractiveShell({
   cwd = process.cwd(),
@@ -32,10 +36,42 @@ export async function runInteractiveShell({
   pauseGraceSleep = sleep,
   onEvent = () => {},
   pauseGraceSeconds = DEFAULT_INTERACTIVE_PAUSE_GRACE_SECONDS,
+  forceTerminationGraceSeconds = DEFAULT_UNATTENDED_FORCE_TERMINATION_GRACE_SECONDS,
   requireRepo = false,
+  forceGlobal = false,
+  unattended = false,
   globalStateDir = null,
 } = {}) {
+  if (forceGlobal && requireRepo) {
+    throw new Error('Cannot combine --global and --require-repo');
+  }
+
   const repoRoot = tryResolveRepoRoot(cwd);
+
+  if (forceGlobal) {
+    return runGlobalInteractiveShell({
+      cwd,
+      prompt,
+      adapter,
+      ptyRunner,
+      signal,
+      stdin,
+      stdout,
+      stderr,
+      onCooldown,
+      streamDetector,
+      clock,
+      sleep,
+      pauseGraceSleep,
+      onEvent,
+      pauseGraceSeconds,
+      forceTerminationGraceSeconds,
+      unattended,
+      notice: repoRoot ? 'forced_global' : 'no_git',
+      globalStateDir,
+    });
+  }
+
   if (!repoRoot) {
     if (requireRepo) {
       throw new Error('continuity must run inside a git repository');
@@ -57,6 +93,33 @@ export async function runInteractiveShell({
       pauseGraceSleep,
       onEvent,
       pauseGraceSeconds,
+      forceTerminationGraceSeconds,
+      unattended,
+      notice: 'no_git',
+      globalStateDir,
+    });
+  }
+
+  if (!existsSync(paths(repoRoot).agentDir)) {
+    return runGlobalInteractiveShell({
+      cwd,
+      prompt,
+      adapter,
+      ptyRunner,
+      signal,
+      stdin,
+      stdout,
+      stderr,
+      onCooldown,
+      streamDetector,
+      clock,
+      sleep,
+      pauseGraceSleep,
+      onEvent,
+      pauseGraceSeconds,
+      forceTerminationGraceSeconds,
+      unattended,
+      notice: 'uninitialized_repo',
       globalStateDir,
     });
   }
@@ -78,6 +141,8 @@ export async function runInteractiveShell({
     pauseGraceSleep,
     onEvent,
     pauseGraceSeconds,
+    forceTerminationGraceSeconds,
+    unattended,
   });
 }
 
@@ -98,6 +163,8 @@ async function runProjectInteractiveShell({
   pauseGraceSleep,
   onEvent,
   pauseGraceSeconds,
+  forceTerminationGraceSeconds,
+  unattended,
 }) {
   const { config, state } = loadAgentState(repoRoot);
   const providerAdapter = adapter ?? getProviderAdapter(config.provider);
@@ -159,6 +226,8 @@ async function runProjectInteractiveShell({
       sleep,
       pauseGraceSleep,
       pauseGraceSeconds,
+      forceTerminationGraceSeconds,
+      unattended,
     });
     runs.push(result);
 
@@ -208,6 +277,19 @@ async function runProjectInteractiveShell({
         clock().toISOString(),
       );
       return { ...result, mode: 'project_shell', repoRoot, runs, interactiveResumes };
+    }
+
+    if (result.unattendedForcedTermination) {
+      transitionState(
+        repoRoot,
+        {
+          interactive_shell_status: 'cooldown_child_terminated',
+          last_tty_event: 'unattended_pause_forced',
+        },
+        'unattended_pause_forced',
+        'unattended mode forced Codex child termination after cooldown',
+        clock().toISOString(),
+      );
     }
 
     const latest = loadAgentState(repoRoot);
@@ -265,11 +347,14 @@ async function runGlobalInteractiveShell({
   pauseGraceSleep,
   onEvent,
   pauseGraceSeconds,
+  forceTerminationGraceSeconds,
+  unattended,
+  notice,
   globalStateDir,
 }) {
   const providerAdapter = adapter ?? getProviderAdapter(DEFAULT_CONFIG.provider);
   const filePaths = globalShellPaths({ stateDir: globalStateDir });
-  writeGlobalModeNotice(stderr);
+  writeGlobalModeNotice(stderr, { notice });
 
   const loadedState = readGlobalShellState({ stateDir: globalStateDir, cwd });
   const adoptingCooldown = loadedState.status === 'cooling_down' && loadedState.cwd === cwd;
@@ -291,6 +376,8 @@ async function runGlobalInteractiveShell({
       ...startState,
       usage_window_started_at: startState.usage_window_started_at ?? startedAt,
       status: adoptingCooldown ? startState.status : 'running',
+      interactive_shell_status: adoptingCooldown ? startState.interactive_shell_status : 'running',
+      last_tty_event: adoptingCooldown ? startState.last_tty_event : 'interactive_shell_started',
     },
     event: 'interactive_shell_started',
     reason: 'global interactive shell started',
@@ -348,6 +435,8 @@ async function runGlobalInteractiveShell({
       sleep,
       pauseGraceSleep,
       pauseGraceSeconds,
+      forceTerminationGraceSeconds,
+      unattended,
     });
     runs.push(result);
 
@@ -392,6 +481,8 @@ async function runGlobalInteractiveShell({
           next_resume_at: null,
           cooldown_detected_at: null,
           reset_time_provenance: null,
+          interactive_shell_status: 'exited',
+          last_tty_event: 'interactive_shell_exited',
         },
         event: 'interactive_shell_exited',
         reason: 'global interactive shell exited',
@@ -416,6 +507,8 @@ async function runGlobalInteractiveShell({
         state: {
           ...latest,
           status: latest.status === 'cooling_down' ? 'cooling_down' : 'aborted',
+          interactive_shell_status: 'aborted',
+          last_tty_event: 'interactive_shell_aborted',
         },
         event: 'interactive_shell_aborted',
         reason: pauseAbortReason(result),
@@ -429,6 +522,22 @@ async function runGlobalInteractiveShell({
         runs,
         interactiveResumes,
       };
+    }
+
+    if (result.unattendedForcedTermination) {
+      const latest = readGlobalShellState({ stateDir: globalStateDir, cwd });
+      writeGlobalShellState({
+        stateDir: globalStateDir,
+        state: {
+          ...latest,
+          status: 'cooling_down',
+          interactive_shell_status: 'cooldown_child_terminated',
+          last_tty_event: 'unattended_pause_forced',
+        },
+        event: 'unattended_pause_forced',
+        reason: 'unattended mode forced Codex child termination after cooldown',
+        timestamp: clock().toISOString(),
+      });
     }
 
     const resume = await prepareGlobalInteractiveResume({
@@ -462,12 +571,16 @@ async function runInteractivePtyOnce({
   sleep,
   pauseGraceSleep,
   pauseGraceSeconds,
+  forceTerminationGraceSeconds,
+  unattended,
 }) {
   let cooldownRecord = null;
   let waitingForPauseConfirmation = false;
   let pauseConfirmed = false;
   let abortRequested = false;
   let pauseGraceTimedOut = false;
+  let unattendedPauseStarted = false;
+  let unattendedForcedTermination = false;
   let ptyFinished = false;
   const detector =
     streamDetector ??
@@ -481,8 +594,8 @@ async function runInteractivePtyOnce({
           text: event.normalizedText,
           now: clock(),
         });
-        writeWrapperMessage(stderr, cooldownRecord);
-        waitingForPauseConfirmation = true;
+        writeWrapperMessage(stderr, cooldownRecord, { unattended });
+        waitingForPauseConfirmation = !unattended;
         onCooldown?.({ ...event, record: cooldownRecord });
       },
     });
@@ -492,7 +605,26 @@ async function runInteractivePtyOnce({
     stdin,
     stdout,
     stderr,
-    onData: (chunk) => detector.push(chunk),
+    onData: (chunk, context) => {
+      const hadCooldown = Boolean(cooldownRecord);
+      detector.push(chunk);
+      if (!hadCooldown && cooldownRecord && unattended) {
+        unattendedPauseStarted = true;
+        pauseConfirmed = true;
+        context?.child?.kill?.('SIGINT');
+        startUnattendedPauseTimer({
+          context,
+          stderr,
+          sleep: pauseGraceSleep,
+          pauseGraceSeconds,
+          forceTerminationGraceSeconds,
+          isFinished: () => ptyFinished,
+          forceTerminated: () => {
+            unattendedForcedTermination = true;
+          },
+        });
+      }
+    },
     onInput: (chunk, context) => {
       if (!waitingForPauseConfirmation) {
         return true;
@@ -528,7 +660,11 @@ async function runInteractivePtyOnce({
   });
   ptyFinished = true;
   const childExitedAfterCooldown = Boolean(
-    cooldownRecord && !pauseConfirmed && !abortRequested && !pauseGraceTimedOut,
+    cooldownRecord &&
+    !pauseConfirmed &&
+    !abortRequested &&
+    !pauseGraceTimedOut &&
+    !unattendedPauseStarted,
   );
   return {
     ...result,
@@ -537,12 +673,21 @@ async function runInteractivePtyOnce({
     childExitedAfterCooldown,
     abortRequested,
     pauseGraceTimedOut,
+    unattendedPauseStarted,
+    unattendedForcedTermination:
+      unattendedForcedTermination || Boolean(result?.unattendedForcedTermination),
   };
 }
 
-function writeWrapperMessage(stderr, record) {
+function writeWrapperMessage(stderr, record, { unattended = false } = {}) {
   stderr?.write?.('[continuity] Cooldown detected.\n');
   stderr?.write?.(`[continuity] Next resume at: ${record.nextResumeAt}\n`);
+  if (unattended) {
+    stderr?.write?.('[continuity] Unattended mode is enabled.\n');
+    stderr?.write?.('[continuity] Pausing Codex automatically.\n');
+    return;
+  }
+
   stderr?.write?.('[continuity] Press Enter to pause and wait.\n');
   stderr?.write?.('[continuity] Press Ctrl-C to abort wrapper and preserve state.\n');
 }
@@ -573,6 +718,52 @@ function startPauseGraceTimer({ context, stderr, sleep, pauseGraceSeconds, isFin
         exitCode: null,
         signal: 'SIGINT',
         pauseGraceTimedOut: true,
+      });
+    });
+}
+
+function startUnattendedPauseTimer({
+  context,
+  stderr,
+  sleep,
+  pauseGraceSeconds,
+  forceTerminationGraceSeconds,
+  isFinished,
+  forceTerminated,
+}) {
+  Promise.resolve()
+    .then(() => sleep(pauseGraceSeconds * 1000))
+    .then(() => {
+      if (isFinished()) {
+        return null;
+      }
+      forceTerminated();
+      stderr?.write?.('[continuity] Codex did not exit after unattended pause request.\n');
+      stderr?.write?.('[continuity] Forcing Codex child termination.\n');
+      context?.child?.kill?.('SIGTERM');
+      return sleep(forceTerminationGraceSeconds * 1000);
+    })
+    .then((waitedForTerm) => {
+      if (waitedForTerm === null || isFinished()) {
+        return;
+      }
+      context?.child?.kill?.('SIGKILL');
+      context?.finish?.({
+        exitCode: null,
+        signal: 'SIGKILL',
+        unattendedForcedTermination: true,
+      });
+    })
+    .catch(() => {
+      if (isFinished()) {
+        return;
+      }
+      forceTerminated();
+      context?.child?.kill?.('SIGKILL');
+      context?.finish?.({
+        exitCode: null,
+        signal: 'SIGKILL',
+        unattendedForcedTermination: true,
       });
     });
 }
@@ -686,8 +877,10 @@ async function prepareGlobalInteractiveResume({
     state: {
       ...afterWait,
       status: 'resuming',
+      interactive_shell_status: 'resuming',
       interactive_resume_target: target.value,
       interactive_resume_target_provenance: target.provenance,
+      last_tty_event: 'interactive_shell_resuming',
     },
     event: 'interactive_shell_resuming',
     reason: `global interactive shell resuming with ${target.value}`,
@@ -711,9 +904,23 @@ async function prepareGlobalInteractiveResume({
   };
 }
 
-function writeGlobalModeNotice(stderr) {
-  stderr?.write?.('[continuity] No git repository found.\n');
+function writeGlobalModeNotice(stderr, { notice = 'no_git' } = {}) {
+  if (notice === 'uninitialized_repo') {
+    stderr?.write?.(
+      '[continuity] This git repository is not initialized for project continuity.\n',
+    );
+  } else if (notice === 'forced_global') {
+    stderr?.write?.('[continuity] Global Shell Mode forced by --global.\n');
+  } else {
+    stderr?.write?.('[continuity] No git repository found.\n');
+  }
+
   stderr?.write?.('[continuity] Starting Global Shell Mode.\n');
+  if (notice === 'uninitialized_repo') {
+    stderr?.write?.(
+      '[continuity] Run `continuity init --task-id <task-id>` to enable project continuity.\n',
+    );
+  }
   stderr?.write?.('[continuity] Project handoff, git recovery, and .agent state are disabled.\n');
   stderr?.write?.('[continuity] Cooldown detection and best-effort Codex resume remain enabled.\n');
 }
