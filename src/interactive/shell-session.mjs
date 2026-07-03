@@ -168,7 +168,8 @@ async function runProjectInteractiveShell({
 }) {
   const { config, state } = loadAgentState(repoRoot);
   const providerAdapter = adapter ?? getProviderAdapter(config.provider);
-  if (state.status === 'cooling_down') {
+  const adoptingCooldown = state.status === 'cooling_down';
+  if (adoptingCooldown) {
     assertAdoptableInteractiveCooldown(state);
   }
 
@@ -176,8 +177,12 @@ async function runProjectInteractiveShell({
   transitionState(
     repoRoot,
     {
-      interactive_shell_started_at: state.interactive_shell_started_at ?? startedAt,
-      usage_window_started_at: state.usage_window_started_at ?? startedAt,
+      interactive_shell_started_at: adoptingCooldown
+        ? (state.interactive_shell_started_at ?? startedAt)
+        : startedAt,
+      usage_window_started_at: adoptingCooldown
+        ? (state.usage_window_started_at ?? startedAt)
+        : startedAt,
       interactive_shell_status: 'running',
       last_tty_event: 'interactive_shell_started',
     },
@@ -190,7 +195,7 @@ async function runProjectInteractiveShell({
   let interactiveResumes = 0;
   let commandSpec = null;
 
-  if (state.status === 'cooling_down') {
+  if (adoptingCooldown) {
     const resume = await prepareInteractiveResume({
       repoRoot,
       providerAdapter,

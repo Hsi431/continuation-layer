@@ -253,6 +253,28 @@ test('project interactive shell sets usage_window_started_at on start', async ()
   assert.equal(state.interactive_shell_started_at, '2026-06-29T00:00:00.000Z');
 });
 
+test('project interactive shell refreshes usage_window_started_at for fresh sessions', async () => {
+  const repo = makeRepo();
+  const statePath = join(repo, '.agent', 'state.json');
+  const oldState = readJson(statePath);
+  writeJson(statePath, {
+    ...oldState,
+    status: 'checkpointed',
+    usage_window_started_at: '2026-06-29T00:00:00.000Z',
+    interactive_shell_started_at: '2026-06-29T00:00:00.000Z',
+  });
+
+  await runInteractiveShell({
+    cwd: repo,
+    clock: () => new Date('2026-06-30T10:00:00.000Z'),
+    ptyRunner: async () => ({ exitCode: 0, signal: null }),
+  });
+  const state = readJson(statePath);
+
+  assert.equal(state.usage_window_started_at, '2026-06-30T10:00:00.000Z');
+  assert.equal(state.interactive_shell_started_at, '2026-06-30T10:00:00.000Z');
+});
+
 test('interactive shell outside git enters global mode and spawns Codex in cwd', async () => {
   const cwd = makeDir();
   const stateDir = makeDir('continuity-global-state-');
@@ -675,6 +697,45 @@ test('project interactive cooldown uses usage window anchor fallback', async () 
   assert.equal(state.usage_window_started_at, '2026-06-29T00:00:00.000Z');
   assert.equal(state.cooldown_detected_at, '2026-06-29T04:50:00.000Z');
   assert.equal(state.next_resume_at, '2026-06-29T05:05:00.000Z');
+  assert.equal(state.reset_time_provenance, 'usage_window_anchor');
+});
+
+test('project interactive cooldown fallback uses refreshed usage window for fresh session', async () => {
+  const repo = makeRepo();
+  const statePath = join(repo, '.agent', 'state.json');
+  const oldState = readJson(statePath);
+  writeJson(statePath, {
+    ...oldState,
+    status: 'checkpointed',
+    usage_window_started_at: '2026-06-29T00:00:00.000Z',
+    interactive_shell_started_at: '2026-06-29T00:00:00.000Z',
+  });
+  const adapter = makeNoResetAdapter();
+  const child = {
+    kill() {},
+  };
+  const times = [
+    '2026-06-30T10:00:00.000Z',
+    '2026-06-30T14:50:00.000Z',
+    '2026-06-30T14:50:00.000Z',
+  ];
+  let timeIndex = 0;
+
+  await runInteractiveShell({
+    cwd: repo,
+    adapter,
+    clock: () => new Date(times[Math.min(timeIndex++, times.length - 1)]),
+    ptyRunner: async (_spec, options) => {
+      options.onData('usage limit reached');
+      options.onInput('\u0003', { child });
+      return { exitCode: null, signal: 'SIGINT' };
+    },
+  });
+  const state = readJson(statePath);
+
+  assert.equal(state.usage_window_started_at, '2026-06-30T10:00:00.000Z');
+  assert.equal(state.cooldown_detected_at, '2026-06-30T14:50:00.000Z');
+  assert.equal(state.next_resume_at, '2026-06-30T15:05:00.000Z');
   assert.equal(state.reset_time_provenance, 'usage_window_anchor');
 });
 
@@ -1106,6 +1167,30 @@ test('interactive shell adopts existing interactive cooling_down state', async (
   assert.deepEqual(sleeps, [300000]);
   assert.equal(commands.length, 1);
   assert.deepEqual(commands[0].args, ['resume', '-C', repo, 'sess-existing']);
+});
+
+test('project interactive shell preserves usage_window_started_at when adopting cooling_down', async () => {
+  const repo = makeRepo();
+  setCoolingDownState(repo, {
+    usage_window_started_at: '2026-06-29T00:00:00.000Z',
+    interactive_shell_started_at: '2026-06-29T00:00:00.000Z',
+    next_resume_at: '2026-06-29T00:00:00.000Z',
+  });
+  const commands = [];
+
+  await runInteractiveShell({
+    cwd: repo,
+    clock: () => new Date('2026-06-29T00:00:00.000Z'),
+    ptyRunner: async (spec) => {
+      commands.push(spec);
+      return { exitCode: 0, signal: null };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.deepEqual(commands[0].args, ['resume', '-C', repo, 'sess-existing']);
+  assert.equal(state.usage_window_started_at, '2026-06-29T00:00:00.000Z');
+  assert.equal(state.interactive_shell_started_at, '2026-06-29T00:00:00.000Z');
 });
 
 test('interactive shell immediately resumes an expired existing cooldown', async () => {
