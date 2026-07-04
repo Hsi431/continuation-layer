@@ -32,6 +32,7 @@ function parseArgs(argv) {
     requireRepo: false,
     forceGlobal: false,
     unattended: false,
+    debug: false,
     promptParts: [],
   };
 
@@ -51,6 +52,8 @@ function parseArgs(argv) {
       options.forceGlobal = true;
     } else if (arg === '--unattended' || arg === '--overnight') {
       options.unattended = true;
+    } else if (arg === '--debug') {
+      options.debug = true;
     } else if (arg === '--task-id') {
       options.taskId = args.shift();
     } else if (arg === '--provider') {
@@ -101,6 +104,7 @@ Options:
   --global             For codex/shell, force Global Shell Mode even inside git repositories
   --unattended         For codex/shell, auto-pause, wait, and resume on cooldown
   --overnight          Alias for --unattended
+  --debug              For codex/shell, print cooldown source diagnostics
   --allow-early        Resume before next_resume_at
   --yes                Confirm child continuation startup
 
@@ -227,6 +231,10 @@ function printAbortGuidance(result) {
 function printOvernightResult(result) {
   console.log(`overnight mode: ${result.config.overnight_mode}`);
   console.log(`auto continue after handoff: ${result.config.auto_continue_after_handoff}`);
+}
+
+function continuityDebugEnabled(env = process.env) {
+  return /^(1|true|yes|on)$/i.test(env.CONTINUITY_DEBUG ?? '');
 }
 
 function printArchiveResult(label, result) {
@@ -419,6 +427,7 @@ async function main() {
       requireRepo: options.requireRepo,
       forceGlobal: options.forceGlobal,
       unattended: options.unattended,
+      debug: options.debug || continuityDebugEnabled(),
     });
     process.exitCode = result.exitCode ?? 0;
     return;

@@ -1,13 +1,26 @@
 const COOLDOWN_PATTERNS = Object.freeze([
-  /429\b/i,
-  /rate\s*limit/i,
-  /usage\s*limit/i,
-  /(?:api|request|usage|rate)\s+limit\s+(?:reached|exceeded)/i,
-  /5\s*[- ]?hour\s+(?:wall|limit|window)/i,
-  /try\s+again\s+(?:in|after)\s+\d+\s*(?:h|hr|hrs|hour|hours|m|min|mins|minute|minutes|s|sec|secs|second|seconds)\b/i,
-  /try\s+again\s+at\s+\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\b/i,
-  /too\s+many\s+requests/i,
-  /"?resets?_at"?\s*[:=]/i,
+  { label: 'http_429', pattern: /429\b/i },
+  { label: 'rate_limit_reached', pattern: /rate\s+limit\s+(?:reached|exceeded)/i },
+  {
+    label: 'provider_limit_reached',
+    pattern: /(?:api|request|usage|rate)\s+limit\s+(?:reached|exceeded)/i,
+  },
+  {
+    label: 'you_reached_limit',
+    pattern:
+      /you\s+(?:have\s+)?(?:hit|reached|exceeded)\s+(?:the\s+)?(?:api|request|usage|rate)?\s*limit/i,
+  },
+  {
+    label: 'try_again_duration',
+    pattern:
+      /try\s+again\s+(?:in|after)\s+\d+\s*(?:h|hr|hrs|hour|hours|m|min|mins|minute|minutes|s|sec|secs|second|seconds)\b/i,
+  },
+  {
+    label: 'try_again_at',
+    pattern: /try\s+again\s+at\s+\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\b/i,
+  },
+  { label: 'too_many_requests', pattern: /too\s+many\s+requests/i },
+  { label: 'cooldown', pattern: /\bcooldown\b/i },
 ]);
 
 export const codexAdapter = Object.freeze({
@@ -47,14 +60,17 @@ export const codexAdapter = Object.freeze({
 
   detectCooldownError(text) {
     const source = String(text ?? '');
-    const matched = COOLDOWN_PATTERNS.find((pattern) => pattern.test(source));
+    const matched = COOLDOWN_PATTERNS.find(({ pattern }) => pattern.test(source));
     if (!matched) {
       return { matched: false, reason: null };
     }
 
+    const line = firstCooldownLine(source);
     return {
       matched: true,
-      reason: firstCooldownLine(source) ?? 'cooldown or rate limit detected',
+      reason: line?.text ?? 'cooldown or rate limit detected',
+      matchedPattern: line?.label ?? matched.label,
+      matchedTextExcerpt: safeExcerpt(line?.text ?? source),
     };
   },
 
@@ -142,10 +158,27 @@ function compactArgs(args) {
 }
 
 function firstCooldownLine(text) {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find((line) => COOLDOWN_PATTERNS.some((pattern) => pattern.test(line)));
+  for (const line of text.split(/\r?\n/).map((value) => value.trim())) {
+    const matched = COOLDOWN_PATTERNS.find(({ pattern }) => pattern.test(line));
+    if (matched) {
+      return {
+        text: line,
+        label: matched.label,
+      };
+    }
+  }
+
+  return null;
+}
+
+function safeExcerpt(text, maxChars = 200) {
+  const compact = String(text ?? '')
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/\n+/g, ' | ')
+    .trim()
+    .replace(/\b(?:sk|sess)-[A-Za-z0-9_-]{12,}\b/g, '[redacted]');
+
+  return compact.length > maxChars ? `${compact.slice(0, maxChars - 3)}...` : compact;
 }
 
 function parseEpochReset(source) {

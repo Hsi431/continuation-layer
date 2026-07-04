@@ -40,6 +40,7 @@ export async function runInteractiveShell({
   requireRepo = false,
   forceGlobal = false,
   unattended = false,
+  debug = false,
   globalStateDir = null,
 } = {}) {
   if (forceGlobal && requireRepo) {
@@ -67,6 +68,7 @@ export async function runInteractiveShell({
       pauseGraceSeconds,
       forceTerminationGraceSeconds,
       unattended,
+      debug,
       notice: repoRoot ? 'forced_global' : 'no_git',
       globalStateDir,
     });
@@ -95,6 +97,7 @@ export async function runInteractiveShell({
       pauseGraceSeconds,
       forceTerminationGraceSeconds,
       unattended,
+      debug,
       notice: 'no_git',
       globalStateDir,
     });
@@ -119,6 +122,7 @@ export async function runInteractiveShell({
       pauseGraceSeconds,
       forceTerminationGraceSeconds,
       unattended,
+      debug,
       notice: 'uninitialized_repo',
       globalStateDir,
     });
@@ -143,6 +147,7 @@ export async function runInteractiveShell({
     pauseGraceSeconds,
     forceTerminationGraceSeconds,
     unattended,
+    debug,
   });
 }
 
@@ -165,23 +170,56 @@ async function runProjectInteractiveShell({
   pauseGraceSeconds,
   forceTerminationGraceSeconds,
   unattended,
+  debug,
 }) {
   const { config, state } = loadAgentState(repoRoot);
   const providerAdapter = adapter ?? getProviderAdapter(config.provider);
-  const adoptingCooldown = state.status === 'cooling_down';
-  if (adoptingCooldown) {
-    assertAdoptableInteractiveCooldown(state);
+  const startedAt = clock().toISOString();
+  let activeState = state;
+  let adoptingCooldown = false;
+  const adoption = assessProjectCooldownAdoption(state);
+  if (adoption.found) {
+    writeAdoptedCooldownDebug(stderr, state, {
+      debug,
+      mode: 'project',
+      action: adoption.action,
+      reason: adoption.reason,
+    });
+
+    if (adoption.action === 'adopt') {
+      adoptingCooldown = true;
+      writeAdoptedCooldownMessage(stderr, state);
+    } else if (adoption.action === 'ignore_stale') {
+      writeStaleCooldownMessage(stderr, adoption.reason);
+      activeState = transitionState(
+        repoRoot,
+        {
+          status: 'checkpointed',
+          mode: 'normal',
+          next_resume_at: null,
+          cooldown_reason: null,
+          cooldown_detected_at: null,
+          reset_time_provenance: null,
+          interactive_shell_status: 'exited',
+          interactive_resume_target: null,
+          interactive_resume_target_provenance: null,
+          last_tty_event: 'interactive_shell_exited',
+        },
+        'interactive_shell_exited',
+        `stale interactive cooldown ignored: ${adoption.reason}`,
+        startedAt,
+      );
+    }
   }
 
-  const startedAt = clock().toISOString();
   transitionState(
     repoRoot,
     {
       interactive_shell_started_at: adoptingCooldown
-        ? (state.interactive_shell_started_at ?? startedAt)
+        ? (activeState.interactive_shell_started_at ?? startedAt)
         : startedAt,
       usage_window_started_at: adoptingCooldown
-        ? (state.usage_window_started_at ?? startedAt)
+        ? (activeState.usage_window_started_at ?? startedAt)
         : startedAt,
       interactive_shell_status: 'running',
       last_tty_event: 'interactive_shell_started',
@@ -233,6 +271,9 @@ async function runProjectInteractiveShell({
       pauseGraceSeconds,
       forceTerminationGraceSeconds,
       unattended,
+      debug,
+      mode: 'project',
+      getStateStatusBeforeDetection: () => loadAgentState(repoRoot).state.status,
     });
     runs.push(result);
 
@@ -354,6 +395,7 @@ async function runGlobalInteractiveShell({
   pauseGraceSeconds,
   forceTerminationGraceSeconds,
   unattended,
+  debug,
   notice,
   globalStateDir,
 }) {
@@ -365,6 +407,13 @@ async function runGlobalInteractiveShell({
   const adoptingCooldown = loadedState.status === 'cooling_down' && loadedState.cwd === cwd;
   if (adoptingCooldown) {
     assertAdoptableGlobalCooldown(loadedState);
+    writeAdoptedCooldownDebug(stderr, loadedState, {
+      debug,
+      mode: 'global',
+      action: 'adopt',
+      reason: null,
+    });
+    writeAdoptedCooldownMessage(stderr, loadedState);
   }
 
   const startedAt = clock().toISOString();
@@ -442,6 +491,10 @@ async function runGlobalInteractiveShell({
       pauseGraceSeconds,
       forceTerminationGraceSeconds,
       unattended,
+      debug,
+      mode: 'global',
+      getStateStatusBeforeDetection: () =>
+        readGlobalShellState({ stateDir: globalStateDir, cwd }).status,
     });
     runs.push(result);
 
@@ -578,6 +631,9 @@ async function runInteractivePtyOnce({
   pauseGraceSeconds,
   forceTerminationGraceSeconds,
   unattended,
+  debug,
+  mode,
+  getStateStatusBeforeDetection = null,
 }) {
   let cooldownRecord = null;
   let waitingForPauseConfirmation = false;
@@ -592,12 +648,23 @@ async function runInteractivePtyOnce({
     createCooldownStreamDetector({
       adapter: providerAdapter,
       onCooldown: (event) => {
+        const now = clock();
+        const stateStatusBeforeDetection = getStateStatusBeforeDetection?.() ?? null;
         cooldownRecord = cooldownRecorder({
           repoRoot,
           adapter: providerAdapter,
           cooldown: event,
           text: event.normalizedText,
-          now: clock(),
+          now,
+        });
+        writeStreamCooldownDebug(stderr, {
+          debug,
+          mode,
+          event,
+          record: cooldownRecord,
+          adapter: providerAdapter,
+          now,
+          stateStatusBeforeDetection,
         });
         writeWrapperMessage(stderr, cooldownRecord, { unattended });
         waitingForPauseConfirmation = !unattended;
@@ -685,7 +752,7 @@ async function runInteractivePtyOnce({
 }
 
 function writeWrapperMessage(stderr, record, { unattended = false } = {}) {
-  stderr?.write?.('[continuity] Cooldown detected.\n');
+  stderr?.write?.('[continuity] Cooldown detected from Codex output.\n');
   stderr?.write?.(`[continuity] Next resume at: ${record.nextResumeAt}\n`);
   if (unattended) {
     stderr?.write?.('[continuity] Unattended mode is enabled.\n');
@@ -695,6 +762,75 @@ function writeWrapperMessage(stderr, record, { unattended = false } = {}) {
 
   stderr?.write?.('[continuity] Press Enter to pause and wait.\n');
   stderr?.write?.('[continuity] Press Ctrl-C to abort wrapper and preserve state.\n');
+}
+
+function writeAdoptedCooldownMessage(stderr, state) {
+  stderr?.write?.('[continuity] Existing cooldown state found from previous run.\n');
+  stderr?.write?.(`[continuity] Next resume at: ${state.next_resume_at}\n`);
+  stderr?.write?.(
+    '[continuity] Press Ctrl-C to abort and run `continuity status` if this looks stale.\n',
+  );
+}
+
+function writeStaleCooldownMessage(stderr, reason) {
+  stderr?.write?.(`[continuity] Existing cooldown state looks stale: ${reason}.\n`);
+  stderr?.write?.('[continuity] Starting a fresh Codex TUI instead.\n');
+}
+
+function writeAdoptedCooldownDebug(stderr, state, { debug, mode, action, reason }) {
+  if (!debug) {
+    return;
+  }
+
+  writeDebugJson(stderr, {
+    event: 'cooldown_detected',
+    source: 'adopted_state',
+    matched_text_excerpt: safeDebugExcerpt(state.cooldown_reason),
+    matched_pattern: null,
+    parsed_reset: state.next_resume_at ?? null,
+    provenance: state.reset_time_provenance ?? null,
+    mode,
+    state_status_before_detection: state.status ?? null,
+    session_id: state.current_session_id ?? null,
+    adoption_action: action,
+    adoption_reason: reason ?? null,
+  });
+}
+
+function writeStreamCooldownDebug(
+  stderr,
+  { debug, mode, event, record, adapter, now, stateStatusBeforeDetection },
+) {
+  if (!debug) {
+    return;
+  }
+
+  const parsed = adapter.parseResetTimeDetails?.(event.normalizedText, now) ?? null;
+  writeDebugJson(stderr, {
+    event: 'cooldown_detected',
+    source: 'stream_detector',
+    matched_text_excerpt: safeDebugExcerpt(event.matchedTextExcerpt ?? event.reason),
+    matched_pattern: event.matchedPattern ?? null,
+    parsed_reset: parsed?.resetAt?.toISOString?.() ?? null,
+    provenance: record.resetTimeProvenance ?? parsed?.provenance ?? null,
+    mode,
+    state_status_before_detection: stateStatusBeforeDetection,
+    session_id: record.state?.current_session_id ?? null,
+  });
+}
+
+function writeDebugJson(stderr, payload) {
+  stderr?.write?.(`${JSON.stringify(payload)}\n`);
+}
+
+function safeDebugExcerpt(text, maxChars = 200) {
+  const compact = String(text ?? '')
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/\n+/g, ' | ')
+    .trim()
+    .replace(/\b(?:sk|sess)-[A-Za-z0-9_-]{12,}\b/g, '[redacted]');
+
+  return compact.length > maxChars ? `${compact.slice(0, maxChars - 3)}...` : compact;
 }
 
 function startPauseGraceTimer({ context, stderr, sleep, pauseGraceSeconds, isFinished, timedOut }) {
@@ -930,9 +1066,33 @@ function writeGlobalModeNotice(stderr, { notice = 'no_git' } = {}) {
   stderr?.write?.('[continuity] Cooldown detection and best-effort Codex resume remain enabled.\n');
 }
 
+function assessProjectCooldownAdoption(state) {
+  if (state.status !== 'cooling_down') {
+    return { found: false, action: 'fresh', reason: null };
+  }
+
+  assertAdoptableInteractiveCooldown(state);
+
+  if (!state.current_session_id) {
+    return {
+      found: true,
+      action: 'ignore_stale',
+      reason: 'missing current_session_id for project same-session resume',
+    };
+  }
+
+  return { found: true, action: 'adopt', reason: null };
+}
+
 function assertAdoptableInteractiveCooldown(state) {
   if (!state.next_resume_at) {
     throw new Error('Cannot adopt interactive cooldown: missing next_resume_at');
+  }
+
+  if (Number.isNaN(Date.parse(state.next_resume_at))) {
+    throw new Error(
+      `Cannot adopt interactive cooldown: invalid next_resume_at ${state.next_resume_at}`,
+    );
   }
 
   const hasInteractiveMetadata =
@@ -949,6 +1109,12 @@ function assertAdoptableInteractiveCooldown(state) {
 function assertAdoptableGlobalCooldown(state) {
   if (!state.next_resume_at) {
     throw new Error('Cannot adopt global shell cooldown: missing next_resume_at');
+  }
+
+  if (Number.isNaN(Date.parse(state.next_resume_at))) {
+    throw new Error(
+      `Cannot adopt global shell cooldown: invalid next_resume_at ${state.next_resume_at}`,
+    );
   }
 }
 

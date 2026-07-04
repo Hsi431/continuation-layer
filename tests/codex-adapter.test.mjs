@@ -48,6 +48,8 @@ test('codex adapter detects cooldown text and extracts session ids', () => {
   const cooldown = codexAdapter.detectCooldownError(text);
 
   assert.equal(cooldown.matched, true);
+  assert.equal(cooldown.matchedPattern, 'http_429');
+  assert.match(cooldown.matchedTextExcerpt, /429 rate limit reached/i);
   assert.equal(codexAdapter.extractSessionId(text), 'sess-123');
 });
 
@@ -61,6 +63,9 @@ test('codex adapter avoids non-cooldown limit false positives', () => {
     'context limit reached',
     'token limit exceeded',
     'file size limit exceeded',
+    'Usage window resets in 5h',
+    'Next reset at 2026-07-04T00:21:45Z',
+    'You have 1 usage limit reset available. Run /usage to use one.',
   ]) {
     assert.equal(codexAdapter.detectCooldownError(text).matched, false);
   }

@@ -42,6 +42,29 @@ test('stream detector avoids existing provider false positives', () => {
   assert.equal(detector.hasDetected, false);
 });
 
+test('stream detector does not treat startup usage reset text as cooldown', () => {
+  const detector = createCooldownStreamDetector();
+
+  assert.equal(detector.push('Usage window resets in 5h'), null);
+  assert.equal(detector.hasDetected, false);
+});
+
+test('stream detector does not treat startup reset timestamp text as cooldown', () => {
+  const detector = createCooldownStreamDetector();
+
+  assert.equal(detector.push('Next reset at 2026-07-04T00:21:45Z'), null);
+  assert.equal(detector.hasDetected, false);
+});
+
+test('stream detector still detects explicit cooldown failure text', () => {
+  const detector = createCooldownStreamDetector();
+  const event = detector.push('Usage limit reached. Try again at 2026-07-04T00:21:45Z.');
+
+  assert.equal(event.matched, true);
+  assert.equal(event.matchedPattern, 'provider_limit_reached');
+  assert.match(event.reason, /Usage limit reached/i);
+});
+
 test('stream detector emits one cooldown event per episode', () => {
   const events = [];
   const detector = createCooldownStreamDetector({

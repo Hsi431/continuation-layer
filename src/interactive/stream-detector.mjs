@@ -27,6 +27,8 @@ export function createCooldownStreamDetector({
       const event = {
         matched: true,
         reason: cooldown.reason,
+        matchedPattern: cooldown.matchedPattern ?? null,
+        matchedTextExcerpt: cooldown.matchedTextExcerpt ?? null,
         normalizedText,
       };
       onCooldown?.(event);

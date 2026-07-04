@@ -35,6 +35,13 @@ function writeJson(path, value) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function parseDebugLines(text) {
+  return text
+    .split('\n')
+    .filter((line) => line.trim().startsWith('{'))
+    .map((line) => JSON.parse(line));
+}
+
 function makeNoResetAdapter() {
   return {
     ...codexAdapter,
@@ -739,6 +746,93 @@ test('project interactive cooldown fallback uses refreshed usage window for fres
   assert.equal(state.reset_time_provenance, 'usage_window_anchor');
 });
 
+test('startup usage text does not trigger cooldown', async () => {
+  const repo = makeRepo();
+  const stderr = new FakeOutput();
+  const commands = [];
+  const sleeps = [];
+
+  const result = await runInteractiveShell({
+    cwd: repo,
+    stderr,
+    unattended: true,
+    sleep: async (milliseconds) => sleeps.push(milliseconds),
+    ptyRunner: async (spec, options) => {
+      commands.push(spec);
+      options.onData('Usage window resets in 5h');
+      return { exitCode: 0, signal: null };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.equal(result.cooldown, null);
+  assert.equal(result.interactiveResumes, 0);
+  assert.equal(commands.length, 1);
+  assert.deepEqual(commands[0].args, ['-C', repo]);
+  assert.deepEqual(sleeps, []);
+  assert.equal(state.status, 'idle');
+  assert.equal(state.interactive_shell_status, 'exited');
+  assert.doesNotMatch(stderr.text, /Cooldown detected/);
+});
+
+test('startup status text with reset timestamp does not trigger cooldown', async () => {
+  const repo = makeRepo();
+  const stderr = new FakeOutput();
+  const commands = [];
+
+  const result = await runInteractiveShell({
+    cwd: repo,
+    stderr,
+    unattended: true,
+    ptyRunner: async (spec, options) => {
+      commands.push(spec);
+      options.onData('Next reset at 2026-07-04T00:21:45Z');
+      return { exitCode: 0, signal: null };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+
+  assert.equal(result.cooldown, null);
+  assert.equal(result.interactiveResumes, 0);
+  assert.equal(commands.length, 1);
+  assert.equal(state.status, 'idle');
+  assert.equal(state.interactive_shell_status, 'exited');
+  assert.doesNotMatch(stderr.text, /Cooldown detected/);
+});
+
+test('explicit cooldown still triggers from Codex output with debug metadata', async () => {
+  const repo = makeRepo();
+  const stderr = new FakeOutput();
+  const child = {
+    kill() {},
+  };
+
+  const result = await runInteractiveShell({
+    cwd: repo,
+    stderr,
+    debug: true,
+    clock: () => new Date('2026-06-29T00:00:00.000Z'),
+    ptyRunner: async (_spec, options) => {
+      options.onData('Usage limit reached. Try again at 2026-07-04T00:21:45Z.');
+      options.onInput('\u0003', { child });
+      return { exitCode: null, signal: 'SIGINT' };
+    },
+  });
+  const debugEvents = parseDebugLines(stderr.text);
+
+  assert.equal(result.cooldown.status, 'cooling_down');
+  assert.match(stderr.text, /Cooldown detected from Codex output/);
+  assert.equal(debugEvents.length, 1);
+  assert.equal(debugEvents[0].event, 'cooldown_detected');
+  assert.equal(debugEvents[0].source, 'stream_detector');
+  assert.equal(debugEvents[0].matched_pattern, 'provider_limit_reached');
+  assert.match(debugEvents[0].matched_text_excerpt, /Usage limit reached/);
+  assert.equal(debugEvents[0].parsed_reset, '2026-07-04T00:21:45.000Z');
+  assert.equal(debugEvents[0].provenance, 'provider_reset_at');
+  assert.equal(debugEvents[0].mode, 'project');
+  assert.equal(debugEvents[0].state_status_before_detection, 'idle');
+});
+
 test('interactive shell records cooldown state, snapshot, event, and wrapper message', async () => {
   const repo = makeRepo();
   const stderr = new FakeOutput();
@@ -790,7 +884,7 @@ test('interactive shell records cooldown state, snapshot, event, and wrapper mes
     true,
   );
   assert.equal(lastEvent.event, 'interactive_shell_aborted');
-  assert.match(stderr.text, /\[continuity\] Cooldown detected\./);
+  assert.match(stderr.text, /\[continuity\] Cooldown detected from Codex output\./);
   assert.match(stderr.text, /\[continuity\] Next resume at: 2026-06-29T00:15:00\.000Z/);
 });
 
@@ -1147,12 +1241,15 @@ test('interactive shell falls back to codex resume --last without a session id',
 test('interactive shell adopts existing interactive cooling_down state', async () => {
   const repo = makeRepo();
   setCoolingDownState(repo);
+  const stderr = new FakeOutput();
   let nowMs = Date.parse('2026-06-29T00:00:00.000Z');
   const sleeps = [];
   const commands = [];
 
   await runInteractiveShell({
     cwd: repo,
+    stderr,
+    debug: true,
     clock: () => new Date(nowMs),
     sleep: async (milliseconds) => {
       sleeps.push(milliseconds);
@@ -1167,6 +1264,16 @@ test('interactive shell adopts existing interactive cooling_down state', async (
   assert.deepEqual(sleeps, [300000]);
   assert.equal(commands.length, 1);
   assert.deepEqual(commands[0].args, ['resume', '-C', repo, 'sess-existing']);
+  assert.match(stderr.text, /Existing cooldown state found/);
+  assert.doesNotMatch(stderr.text, /Cooldown detected from Codex output/);
+
+  const debugEvents = parseDebugLines(stderr.text);
+  assert.equal(debugEvents.length, 1);
+  assert.equal(debugEvents[0].source, 'adopted_state');
+  assert.equal(debugEvents[0].mode, 'project');
+  assert.equal(debugEvents[0].state_status_before_detection, 'cooling_down');
+  assert.equal(debugEvents[0].session_id, 'sess-existing');
+  assert.equal(debugEvents[0].adoption_action, 'adopt');
 });
 
 test('project interactive shell preserves usage_window_started_at when adopting cooling_down', async () => {
@@ -1213,6 +1320,48 @@ test('interactive shell immediately resumes an expired existing cooldown', async
 
   assert.deepEqual(sleeps, []);
   assert.deepEqual(commands[0].args, ['resume', '-C', repo, 'sess-existing']);
+});
+
+test('project interactive shell diagnoses stale cooling_down without session id and starts fresh', async () => {
+  const repo = makeRepo();
+  setCoolingDownState(repo, {
+    current_session_id: null,
+    next_resume_at: '2026-06-29T00:05:00.000Z',
+  });
+  const stderr = new FakeOutput();
+  let nowMs = Date.parse('2026-06-29T00:00:00.000Z');
+  const sleeps = [];
+  const commands = [];
+
+  await runInteractiveShell({
+    cwd: repo,
+    stderr,
+    debug: true,
+    clock: () => new Date(nowMs),
+    sleep: async (milliseconds) => {
+      sleeps.push(milliseconds);
+      nowMs += milliseconds;
+    },
+    ptyRunner: async (spec) => {
+      commands.push(spec);
+      return { exitCode: 0, signal: null };
+    },
+  });
+  const state = readJson(join(repo, '.agent', 'state.json'));
+  const debugEvents = parseDebugLines(stderr.text);
+
+  assert.deepEqual(sleeps, []);
+  assert.equal(commands.length, 1);
+  assert.deepEqual(commands[0].args, ['-C', repo]);
+  assert.equal(state.status, 'checkpointed');
+  assert.equal(state.next_resume_at, null);
+  assert.match(stderr.text, /Existing cooldown state looks stale/);
+  assert.match(stderr.text, /Starting a fresh Codex TUI instead/);
+  assert.doesNotMatch(stderr.text, /Existing cooldown state found/);
+  assert.equal(debugEvents.length, 1);
+  assert.equal(debugEvents[0].source, 'adopted_state');
+  assert.equal(debugEvents[0].adoption_action, 'ignore_stale');
+  assert.equal(debugEvents[0].session_id, null);
 });
 
 test('interactive shell rejects broken existing cooling_down state', async () => {
